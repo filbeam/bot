@@ -6,6 +6,9 @@
 app = 'filcdn-bot'
 primary_region = 'fra'
 
+[env]
+  DELAY = 30_000
+
 [build]
 
 [[vm]]
