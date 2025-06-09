@@ -45,7 +45,8 @@ export async function sampleRetrieval({
   })
 
   const [proofSetOwner] = await pdpVerifier.getProofSetOwner(setId)
-  const ownerUrl = OWNER_TO_RETRIEVAL_URL_MAPPING[proofSetOwner]?.url
+  const ownerUrl =
+    OWNER_TO_RETRIEVAL_URL_MAPPING[proofSetOwner.toLowerCase()]?.url
   const isSupportedSP = !!ownerUrl
   console.log(
     'Proof set owner: %s (%s) supported? %s',
