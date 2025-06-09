@@ -17,6 +17,6 @@
     "declarationMap": true,
     "resolveJsonModule": true
   },
-  "include": ["index.js", "bin", "lib", "tests"],
+  "include": ["index.js", "bin", "lib", "vendored", "tests"],
   "exclude": ["dist/**/*"]
 }

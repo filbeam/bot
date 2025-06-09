@@ -1,4 +1,6 @@
 import { CID } from 'multiformats/cid'
+import assert from 'node:assert'
+import { OWNER_TO_RETRIEVAL_URL_MAPPING } from './vendored/retriever-constants.js'
 
 export const pdpVerifierAbi = [
   // Returns the next proof set ID
@@ -11,6 +13,8 @@ export const pdpVerifierAbi = [
   'function getNextRootId(uint256 setId) public view returns (uint256)',
   // Returns the root CID for a given proof set and root ID
   'function getRootCid(uint256 setId, uint256 rootId) public view returns (tuple(bytes))',
+  // Returns the owner of a proof set and the proposed owner if any
+  'function getProofSetOwner(uint256 setId) public view returns (address, address)',
 ]
 
 /**
@@ -20,6 +24,7 @@ export const pdpVerifierAbi = [
  *   rootLive(setId: BigInt, rootId: BigInt): Promise<Boolean>
  *   getNextRootId(setId: BigInt): Promise<BigInt>
  *   getRootCid(setId: BigInt, rootId: BigInt): Promise<[string]>
+ *   getProofSetOwner(setId: BigInt): Promise<[string, string]>
  * }} PdpVerifier
  */
 
@@ -27,36 +32,86 @@ export const pdpVerifierAbi = [
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
  * @param {string} args.CDN_URL
+ * @param {BigInt} args.FROM_PROOFSET_ID
  */
-export async function sampleRetrieval({ pdpVerifier, CDN_URL }) {
-  const cid = await pickRandomFile(pdpVerifier)
-  const url = `${CDN_URL}/${cid}`
+
+export async function sampleRetrieval({
+  pdpVerifier,
+  CDN_URL,
+  FROM_PROOFSET_ID,
+}) {
+  const { rootCid, setId, rootId } = await pickRandomFile(pdpVerifier, {
+    FROM_PROOFSET_ID,
+  })
+
+  const [proofSetOwner] = await pdpVerifier.getProofSetOwner(setId)
+  const ownerUrl = OWNER_TO_RETRIEVAL_URL_MAPPING[proofSetOwner]?.url
+  const isSupportedSP = !!ownerUrl
+  console.log(
+    'Proof set owner: %s (%s) supported? %s',
+    proofSetOwner,
+    ownerUrl ?? 'unknown SP',
+    isSupportedSP,
+  )
+
+  const url = `${CDN_URL}/${rootCid}`
   console.log('Fetching', url)
   const res = await fetch(url)
   console.log('-> Status code:', res.status)
   if (!res.ok) {
-    console.log((await res.text()).trim())
+    const reason = (await res.text()).trim()
+    console.log(reason)
+
+    if (isSupportedSP) {
+      console.error(
+        'ALERT Cannot retrieve ProofSet %s Root %s (CID %s): %s %s',
+        setId,
+        rootId,
+        rootCid,
+        res.status,
+        reason,
+      )
+    }
   } else if (res.body) {
     const reader = res.body.getReader()
     while (true) {
       const { done } = await reader.read()
       if (done) break
     }
+
+    // NOTE: Even if the SP (ProofSet owner) is not supported, the retrieval can still
+    // succeed in case that somebody else stored the same file with a participating SP.
+    // For that reason, we are not alerting when this happens.
   }
-  console.log()
 }
 
 /**
  * @param {PdpVerifier} pdpVerifier
- * @returns {Promise<string>} The CommP CID of the file.
+ * @param {Object} options
+ * @param {BigInt} options.FROM_PROOFSET_ID
+ * @returns {Promise<{
+ *   rootCid: string
+ *   setId: BigInt
+ *   rootId: BigInt
+ * }>}
+ *   The CommP CID of the file.
  */
-async function pickRandomFile(pdpVerifier) {
+async function pickRandomFile(pdpVerifier, { FROM_PROOFSET_ID }) {
   while (true) {
     const nextProofSetId = await pdpVerifier.getNextProofSetId()
     console.log('Number of proof sets:', nextProofSetId)
+    assert(
+      FROM_PROOFSET_ID < nextProofSetId,
+      `FROM_PROOFSET_ID ${FROM_PROOFSET_ID} must be less than the number of existing proof sets ${nextProofSetId}`,
+    )
+
     // Safety: this will break after the number of proofsets grow over MAX_SAFE_INTEGER (9e15)
     // We don't expect to keep running this bot for long enough to hit this limit
-    const setId = BigInt(Math.floor(Math.random() * Number(nextProofSetId)))
+    const setId =
+      FROM_PROOFSET_ID +
+      BigInt(
+        Math.floor(Math.random() * Number(nextProofSetId - FROM_PROOFSET_ID)),
+      )
     console.log('Picked proof set id:', setId)
 
     const proofSetLive = await pdpVerifier.proofSetLive(setId)
@@ -68,22 +123,34 @@ async function pickRandomFile(pdpVerifier) {
     const nextRootId = await pdpVerifier.getNextRootId(setId)
     console.log('Number of roots:', nextRootId)
 
-    // Safety: this will break after the number of roots grow over MAX_SAFE_INTEGER (9e15)
-    // We don't expect any proofset to contain so many roots
-    const rootId = BigInt(Math.floor(Math.random() * Number(nextRootId)))
-    console.log('Picked root id:', rootId)
+    // Pick the most recently uploaded file that wasn't deleted yet.
 
-    const rootLive = await pdpVerifier.rootLive(setId, rootId)
+    let rootId = nextRootId - 1n
+    let rootLive = false
+    let remainingAttempts = Math.min(5, Number(nextRootId))
+    while (remainingAttempts > 0 && rootId >= 0n) {
+      rootLive = await pdpVerifier.rootLive(setId, rootId)
+      if (rootLive) break
+
+      console.log('Root %s is not live, trying an older file', rootId)
+      remainingAttempts--
+      rootId--
+    }
+
     if (!rootLive) {
-      console.log('Root is not live, restarting the sampling algorithm')
+      console.log('No more attempts left, restarting the sampling algorithm')
       continue
     }
+
+    console.log('Picked root id:', rootId)
 
     const [rootCidRaw] = await pdpVerifier.getRootCid(setId, rootId)
     console.log('Found CommP:', rootCidRaw)
     const cidBytes = Buffer.from(rootCidRaw.slice(2), 'hex')
-    const rootCid = CID.decode(cidBytes)
-    console.log('Converted to CommP CID:', rootCid)
-    return rootCid.toString()
+    const rootCidObj = CID.decode(cidBytes)
+    console.log('Converted to CommP CID:', rootCidObj)
+    const rootCid = rootCidObj.toString()
+
+    return { rootCid, setId, rootId }
   }
 }
