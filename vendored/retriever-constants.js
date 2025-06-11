@@ -8,7 +8,7 @@
  * >}
  */
 export const OWNER_TO_RETRIEVAL_URL_MAPPING = {
-  '0x12191de399B9B3FfEB562861f9eD62ea8da18AE5': {
+  '0x12191de399b9b3ffeb562861f9ed62ea8da18ae5': {
     url: 'https://techx-pdp.filecoin.no',
     sample: {
       rootCid:
@@ -16,8 +16,7 @@ export const OWNER_TO_RETRIEVAL_URL_MAPPING = {
       proofSetId: 239,
     },
   },
-  // TODO: Add this field '0x4A628ebAecc32B8779A934ebcEffF1646F517756': {url:'https://pdp.zapto.org',rootCid},
-  '0x2A06D234246eD18b6C91de8349fF34C22C7268e8': {
+  '0x2a06d234246ed18b6c91de8349ff34c22c7268e8': {
     url: 'http://pdp.660688.xyz:8443',
     sample: {
       rootCid:
@@ -33,7 +32,7 @@ export const OWNER_TO_RETRIEVAL_URL_MAPPING = {
       proofSetId: 233,
     },
   },
-  '0xCb9e86945cA31E6C3120725BF0385CBAD684040c': {
+  '0xcb9e86945ca31e6c3120725bf0385cbad684040c': {
     url: 'https://caliberation-pdp.infrafolio.com',
     sample: {
       rootCid:
@@ -49,4 +48,5 @@ export const OWNER_TO_RETRIEVAL_URL_MAPPING = {
       proofSetId: 237,
     },
   },
+  // TODO: Add entry for 0x4A628ebAecc32B8779A934ebcEffF1646F517756
 }
