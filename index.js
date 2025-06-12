@@ -2,6 +2,11 @@ import { CID } from 'multiformats/cid'
 import assert from 'node:assert'
 import { OWNER_TO_RETRIEVAL_URL_MAPPING } from './vendored/retriever-constants.js'
 
+// A list of (setId, rootCid) pairs to not retrieve because the SP is not serving retrievals
+const IGNORED_ROOTS = [
+  '212:baga6ea4seaqjlh5gvyf4v4nuwige3nynttmus2kxgr4s6c6rf2pjfkr5cu4rgci',
+]
+
 export const pdpVerifierAbi = [
   // Returns the next proof set ID
   'function getNextProofSetId() public view returns (uint64)',
@@ -151,6 +156,12 @@ async function pickRandomFile(pdpVerifier, { FROM_PROOFSET_ID }) {
     const rootCidObj = CID.decode(cidBytes)
     console.log('Converted to CommP CID:', rootCidObj)
     const rootCid = rootCidObj.toString()
+
+    if (IGNORED_ROOTS.includes(`${setId}:${rootCidRaw}`)) {
+      console.log(
+        'We are ignoring this root, restarting the sampling algorithm',
+      )
+    }
 
     return { rootCid, setId, rootId }
   }
