@@ -74,7 +74,7 @@ export async function sampleRetrieval({
         setId,
         rootId,
         rootCid,
-        ownerUrl,
+        URL.parse(ownerUrl)?.hostname ?? ownerUrl,
         res.status,
         reason,
       )
