@@ -17,7 +17,7 @@ export const OWNER_TO_RETRIEVAL_URL_MAPPING = {
     },
   },
   '0x2a06d234246ed18b6c91de8349ff34c22c7268e8': {
-    url: 'http://pdp.660688.xyz:8443',
+    url: 'https://pdp.660688.xyz:8443',
     sample: {
       rootCid:
         'baga6ea4seaqaleibb6ud4xeemuzzpsyhl6cxlsymsnfco4cdjka5uzajo2x4ipi',
