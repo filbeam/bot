@@ -111,11 +111,11 @@ export async function sampleRetrieval({
 
     if (isSupportedSP) {
       console.error(
-        'ALERT Cannot retrieve ProofSet %s Root %s (CID %s) from %s: %s %s',
-        setId,
-        rootId,
-        rootCid,
+        'ALERT Cannot retrieve ProofSet %s Root %s SP %s via %s: %s %s',
+        String(setId),
+        String(rootId),
         URL.parse(ownerUrl)?.hostname ?? ownerUrl,
+        url,
         res.status,
         reason,
       )
