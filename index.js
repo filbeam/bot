@@ -69,7 +69,7 @@ export async function sampleRetrieval({
     const reason = (await res.text()).trim()
     console.log(reason)
 
-    if (isSupportedSP) {
+    if (isSupportedSP && res.status !== 402) {
       console.error(
         'ALERT Cannot retrieve ProofSet %s Root %s (CID %s) from %s: %s %s',
         setId,
