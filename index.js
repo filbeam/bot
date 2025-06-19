@@ -34,21 +34,61 @@ export const pdpVerifierAbi = [
  * }} PdpVerifier
  */
 
+export const pandoraServiceAbi = [
+  'function getProofSetWithCDN(uint256 proofSetId) external view returns (bool)',
+  `function getProofSet(uint256 proofSetId) external view returns (tuple(
+    uint256 railId,
+    address payer,
+    address payee,
+    uint256 commissionBps,
+    string metadata,
+    string[] rootMetadata,
+    uint256 clientDataSetId,
+    bool withCDN,
+  ) memory)`,
+]
+
+/**
+ * @typedef {{
+ *   railId: BigInt
+ *   payer: string
+ *   payee: string
+ *   commissionBps: BigInt
+ *   metadata: string
+ *   rootMetadata: string[]
+ *   clientDataSetId: BigInt
+ *   withCDN: boolean
+ * }} ProofSetInfo
+ */
+
+/**
+ * @typedef {{
+ *   getProofSetWithCDN(setId: BigInt): Promise<boolean>
+ *   getProofSet(setId: BigInt): Promise<ProofSetInfo>
+ * }} PandoraService
+ */
+
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {string} args.CDN_URL
+ * @param {PandoraService} args.pandoraService
+ * @param {string} args.CDN_HOSTNAME
  * @param {BigInt} args.FROM_PROOFSET_ID
  */
 
 export async function sampleRetrieval({
   pdpVerifier,
-  CDN_URL,
+  pandoraService,
+  CDN_HOSTNAME,
   FROM_PROOFSET_ID,
 }) {
-  const { rootCid, setId, rootId } = await pickRandomFile(pdpVerifier, {
-    FROM_PROOFSET_ID,
-  })
+  const { rootCid, setId, rootId, clientAddress } = await pickRandomFileWithCDN(
+    {
+      pdpVerifier,
+      pandoraService,
+      FROM_PROOFSET_ID,
+    },
+  )
 
   const [proofSetOwner] = await pdpVerifier.getProofSetOwner(setId)
   const ownerUrl =
@@ -61,7 +101,7 @@ export async function sampleRetrieval({
     isSupportedSP,
   )
 
-  const url = `${CDN_URL}/${rootCid}`
+  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${rootCid}`
   console.log('Fetching', url)
   const res = await fetch(url)
   console.log('-> Status code:', res.status)
@@ -69,7 +109,7 @@ export async function sampleRetrieval({
     const reason = (await res.text()).trim()
     console.log(reason)
 
-    if (isSupportedSP && res.status !== 402) {
+    if (isSupportedSP) {
       console.error(
         'ALERT Cannot retrieve ProofSet %s Root %s (CID %s) from %s: %s %s',
         setId,
@@ -94,25 +134,37 @@ export async function sampleRetrieval({
 }
 
 /**
- * @param {PdpVerifier} pdpVerifier
- * @param {Object} options
- * @param {BigInt} options.FROM_PROOFSET_ID
+ * @param {Object} args
+ * @param {PdpVerifier} args.pdpVerifier
+ * @param {PandoraService} args.pandoraService
+ * @param {BigInt} args.FROM_PROOFSET_ID
  * @returns {Promise<{
  *   rootCid: string
  *   setId: BigInt
  *   rootId: BigInt
+ *   clientAddress: string
  * }>}
  *   The CommP CID of the file.
  */
-async function pickRandomFile(pdpVerifier, { FROM_PROOFSET_ID }) {
-  while (true) {
-    const nextProofSetId = await pdpVerifier.getNextProofSetId()
-    console.log('Number of proof sets:', nextProofSetId)
-    assert(
-      FROM_PROOFSET_ID < nextProofSetId,
-      `FROM_PROOFSET_ID ${FROM_PROOFSET_ID} must be less than the number of existing proof sets ${nextProofSetId}`,
-    )
+async function pickRandomFileWithCDN({
+  pdpVerifier,
+  pandoraService,
+  FROM_PROOFSET_ID,
+}) {
+  // Cache state query responses to speed up the sampling algorithm.
+  /** @type {Map<BigInt, boolean>} */
+  const cachedProofSetsLive = new Map()
+  /** @type {Map<BigInt, ProofSetInfo>} */
+  const cachedProofSetsInfo = new Map()
 
+  const nextProofSetId = await pdpVerifier.getNextProofSetId()
+  console.log('Number of proof sets:', nextProofSetId)
+  assert(
+    FROM_PROOFSET_ID < nextProofSetId,
+    `FROM_PROOFSET_ID ${FROM_PROOFSET_ID} must be less than the number of existing proof sets ${nextProofSetId}`,
+  )
+
+  while (true) {
     // Safety: this will break after the number of proofsets grow over MAX_SAFE_INTEGER (9e15)
     // We don't expect to keep running this bot for long enough to hit this limit
     const setId =
@@ -122,11 +174,29 @@ async function pickRandomFile(pdpVerifier, { FROM_PROOFSET_ID }) {
       )
     console.log('Picked proof set id:', setId)
 
-    const proofSetLive = await pdpVerifier.proofSetLive(setId)
+    const proofSetLive =
+      cachedProofSetsLive.get(setId) ?? (await pdpVerifier.proofSetLive(setId))
+    cachedProofSetsLive.set(setId, proofSetLive)
+
     if (!proofSetLive) {
       console.log('Proof set is not live, restarting the sampling algorithm')
       continue
     }
+
+    const info =
+      cachedProofSetsInfo.get(setId) ??
+      (await pandoraService.getProofSet(setId))
+    cachedProofSetsInfo.set(setId, info)
+    const { withCDN, payer: clientAddress } = info
+    // console.log('Proof Set info from Pandora Service', info)
+
+    if (!withCDN) {
+      console.log(
+        'Proof set does not pay for CDN, restarting the sampling algorithm',
+      )
+      continue
+    }
+    console.log('Proofset client:', clientAddress)
 
     const nextRootId = await pdpVerifier.getNextRootId(setId)
     console.log('Number of roots:', nextRootId)
@@ -166,6 +236,6 @@ async function pickRandomFile(pdpVerifier, { FROM_PROOFSET_ID }) {
       continue
     }
 
-    return { rootCid, setId, rootId }
+    return { rootCid, setId, rootId, clientAddress }
   }
 }
