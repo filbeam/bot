@@ -5,6 +5,7 @@ import { OWNER_TO_RETRIEVAL_URL_MAPPING } from './vendored/retriever-constants.j
 // A list of (setId, rootCid) pairs to not retrieve because the SP is not serving retrievals
 const IGNORED_ROOTS = [
   '212:baga6ea4seaqjlh5gvyf4v4nuwige3nynttmus2kxgr4s6c6rf2pjfkr5cu4rgci',
+  '339:baga6ea4seaqnx4gnoeuqjyu7ctmhqtow4nnzukdfuyw3wr5bm73o5vlvbl5mgny',
 ]
 
 export const pdpVerifierAbi = [
