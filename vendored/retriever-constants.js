@@ -8,14 +8,17 @@
  * >}
  */
 export const OWNER_TO_RETRIEVAL_URL_MAPPING = {
-  '0x12191de399b9b3ffeb562861f9ed62ea8da18ae5': {
-    url: 'https://techx-pdp.filecoin.no',
-    sample: {
-      rootCid:
-        'baga6ea4seaqmqjamoiors6rjncefkohlqd2yw7k5ockt2u5fkr6d6rcwpfp5ejq',
-      proofSetId: 239,
-    },
-  },
+  // Disabled because the SP is not serving retrievals and
+  // was removed from the list of SPs approved for the hackathon.
+  //
+  // '0x12191de399b9b3ffeb562861f9ed62ea8da18ae5': {
+  //   url: 'https://techx-pdp.filecoin.no',
+  //   sample: {
+  //     rootCid:
+  //       'baga6ea4seaqmqjamoiors6rjncefkohlqd2yw7k5ockt2u5fkr6d6rcwpfp5ejq',
+  //     proofSetId: 239,
+  //   },
+  // },
   '0x2a06d234246ed18b6c91de8349ff34c22c7268e8': {
     url: 'https://pdp.660688.xyz:8443',
     sample: {
