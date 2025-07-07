@@ -31,6 +31,7 @@ export const pdpVerifierAbi = [
  *   getNextRootId(setId: BigInt): Promise<BigInt>
  *   getRootCid(setId: BigInt, rootId: BigInt): Promise<[string]>
  *   getProofSetOwner(setId: BigInt): Promise<[string, string]>
+ *   isProviderApproved(provider: string): Promise<Boolean>
  * }} PdpVerifier
  */
 
@@ -46,6 +47,7 @@ export const pandoraServiceAbi = [
     uint256 clientDataSetId,
     bool withCDN,
   ) memory)`,
+  'function isProviderApproved(address provider) external view returns (bool)',
 ]
 
 /**
@@ -152,8 +154,6 @@ async function pickRandomFileWithCDN({
   FROM_PROOFSET_ID,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
-  /** @type {Map<BigInt, boolean>} */
-  const cachedProofSetsLive = new Map()
   /** @type {Map<BigInt, ProofSetInfo>} */
   const cachedProofSetsInfo = new Map()
 
@@ -174,9 +174,7 @@ async function pickRandomFileWithCDN({
       )
     console.log('Picked proof set id:', setId)
 
-    const proofSetLive =
-      cachedProofSetsLive.get(setId) ?? (await pdpVerifier.proofSetLive(setId))
-    cachedProofSetsLive.set(setId, proofSetLive)
+    const proofSetLive = await pdpVerifier.proofSetLive(setId)
 
     if (!proofSetLive) {
       console.log('Proof set is not live, restarting the sampling algorithm')
@@ -187,8 +185,15 @@ async function pickRandomFileWithCDN({
       cachedProofSetsInfo.get(setId) ??
       (await pandoraService.getProofSet(setId))
     cachedProofSetsInfo.set(setId, info)
-    const { withCDN, payer: clientAddress } = info
+    const { withCDN, payer: clientAddress, payee: providerAddress } = info
     // console.log('Proof Set info from Pandora Service', info)
+    const providerIsApproved =
+      await pandoraService.isProviderApproved(providerAddress)
+
+    if (!providerIsApproved) {
+      console.log('Provider is not approved, restarting the sampling algorithm')
+      continue
+    }
 
     if (!withCDN) {
       console.log(
