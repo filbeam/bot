@@ -67,6 +67,7 @@ export const pandoraServiceAbi = [
  * @typedef {{
  *   getProofSetWithCDN(setId: BigInt): Promise<boolean>
  *   getProofSet(setId: BigInt): Promise<ProofSetInfo>
+ *   isProviderApproved(provider: string): Promise<boolean>
  * }} PandoraService
  */
 
