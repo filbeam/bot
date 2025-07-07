@@ -210,7 +210,7 @@ async function pickRandomFileWithCDN({
       continue
     }
     if (!(await pdpVerifier.proofSetLive(setId))) {
-      cachedProofSetsLive.set(setId, proofSetLive)
+      cachedProofSetsLive.set(setId, false)
       console.log(
         'Proof set does is not live anymore, updating cache and restarting the sampling algorithm',
       )
