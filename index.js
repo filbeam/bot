@@ -219,7 +219,9 @@ async function pickRandomFileWithCDN({
     }
     if (!(await pandoraService.isProviderApproved(providerAddress))) {
       cachedApprovedProviders.set(providerAddress, false)
-      console.log('Provider is not approved, restarting the sampling algorithm')
+      console.log(
+        'Provider is not approved anymore, restarting the sampling algorithm',
+      )
       continue
     }
     console.log('Proofset client:', clientAddress)
