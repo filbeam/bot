@@ -159,6 +159,8 @@ async function pickRandomFileWithCDN({
   const cachedProofSetsLive = new Map()
   /** @type {Map<BigInt, ProofSetInfo>} */
   const cachedProofSetsInfo = new Map()
+  /** @type {Map<string, boolean>} */
+  const cachedApprovedProviders = new Map()
 
   const nextProofSetId = await pdpVerifier.getNextProofSetId()
   console.log('Number of proof sets:', nextProofSetId)
@@ -193,7 +195,8 @@ async function pickRandomFileWithCDN({
     const { withCDN, payer: clientAddress, payee: providerAddress } = info
     // console.log('Proof Set info from Pandora Service', info)
     const providerIsApproved =
-      await pandoraService.isProviderApproved(providerAddress)
+      cachedApprovedProviders.get(providerAddress) ??
+      (await pandoraService.isProviderApproved(providerAddress))
 
     if (!providerIsApproved) {
       console.log('Provider is not approved, restarting the sampling algorithm')
