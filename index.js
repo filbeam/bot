@@ -155,6 +155,8 @@ async function pickRandomFileWithCDN({
   FROM_PROOFSET_ID,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
+  /** @type {Map<BigInt, boolean>} */
+  const cachedProofSetsLive = new Map()
   /** @type {Map<BigInt, ProofSetInfo>} */
   const cachedProofSetsInfo = new Map()
 
@@ -175,7 +177,9 @@ async function pickRandomFileWithCDN({
       )
     console.log('Picked proof set id:', setId)
 
-    const proofSetLive = await pdpVerifier.proofSetLive(setId)
+    const proofSetLive =
+      cachedProofSetsLive.get(setId) ?? (await pdpVerifier.proofSetLive(setId))
+    cachedProofSetsLive.set(setId, proofSetLive)
 
     if (!proofSetLive) {
       console.log('Proof set is not live, restarting the sampling algorithm')
@@ -199,6 +203,13 @@ async function pickRandomFileWithCDN({
     if (!withCDN) {
       console.log(
         'Proof set does not pay for CDN, restarting the sampling algorithm',
+      )
+      continue
+    }
+    if (!(await pdpVerifier.proofSetLive(setId))) {
+      cachedProofSetsLive.set(setId, proofSetLive)
+      console.log(
+        'Proof set does is not live anymore, updating cache and restarting the sampling algorithm',
       )
       continue
     }
