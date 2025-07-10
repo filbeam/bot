@@ -6,7 +6,6 @@ import { OWNER_TO_RETRIEVAL_URL_MAPPING } from './vendored/retriever-constants.j
 const IGNORED_ROOTS = [
   '212:baga6ea4seaqjlh5gvyf4v4nuwige3nynttmus2kxgr4s6c6rf2pjfkr5cu4rgci',
   '339:baga6ea4seaqnx4gnoeuqjyu7ctmhqtow4nnzukdfuyw3wr5bm73o5vlvbl5mgny',
-  '442:baga6ea4seaqnbpfza3wl5fgu7gnfcyh5h6zufn4skwt6clylnzaw5k6maiwt6ay',
 ]
 
 export const pdpVerifierAbi = [
