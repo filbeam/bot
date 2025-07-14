@@ -74,6 +74,79 @@ export const pandoraServiceAbi = [
 
 /**
  * @param {object} args
+ * @param {string} args.clientAddress
+ * @param {string} args.CDN_HOSTNAME
+ * @param {string} args.rootCid
+ * @param {boolean} args.isSupportedSP
+ * @param {BigInt} args.setId
+ * @param {BigInt} args.rootId
+ * @param {string} args.ownerUrl
+ * @param {boolean} [args.retryOn404=true] Default is `true`
+ * @param {number} [args.retryDelayMs=10_000] Default is `10_000`
+ * @returns {Promise<void>}
+ */
+async function testRetrieval({
+  clientAddress,
+  CDN_HOSTNAME,
+  rootCid,
+  isSupportedSP,
+  setId,
+  rootId,
+  ownerUrl,
+  retryOn404 = true,
+  retryDelayMs = 10_000,
+}) {
+  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${rootCid}`
+  console.log('Fetching', url)
+  const res = await fetch(url)
+  console.log('-> Status code:', res.status)
+  if (!res.ok) {
+    const reason = (await res.text()).trim()
+    console.log(reason)
+
+    if (res.status === 404 && retryOn404) {
+      console.log(
+        `Retrying once after ${retryDelayMs}ms due to 404 error, maybe the indexer hasn't caught up yet`,
+      )
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+      return testRetrieval({
+        clientAddress,
+        CDN_HOSTNAME,
+        rootCid,
+        isSupportedSP,
+        setId,
+        rootId,
+        ownerUrl,
+        retryOn404: false,
+      })
+    }
+
+    if (isSupportedSP) {
+      console.error(
+        'ALERT Cannot retrieve ProofSet %s Root %s SP %s via %s: %s %s',
+        String(setId),
+        String(rootId),
+        URL.parse(ownerUrl)?.hostname ?? ownerUrl,
+        url,
+        res.status,
+        reason,
+      )
+    }
+  } else if (res.body) {
+    const reader = res.body.getReader()
+    while (true) {
+      const { done } = await reader.read()
+      if (done) break
+    }
+
+    // NOTE: Even if the SP (ProofSet owner) is not supported, the retrieval can still
+    // succeed in case that somebody else stored the same file with a participating SP.
+    // For that reason, we are not alerting when this happens.
+  }
+}
+
+/**
+ * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {string} args.CDN_HOSTNAME
@@ -105,36 +178,15 @@ export async function sampleRetrieval({
     isSupportedSP,
   )
 
-  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${rootCid}`
-  console.log('Fetching', url)
-  const res = await fetch(url)
-  console.log('-> Status code:', res.status)
-  if (!res.ok) {
-    const reason = (await res.text()).trim()
-    console.log(reason)
-
-    if (isSupportedSP) {
-      console.error(
-        'ALERT Cannot retrieve ProofSet %s Root %s SP %s via %s: %s %s',
-        String(setId),
-        String(rootId),
-        URL.parse(ownerUrl)?.hostname ?? ownerUrl,
-        url,
-        res.status,
-        reason,
-      )
-    }
-  } else if (res.body) {
-    const reader = res.body.getReader()
-    while (true) {
-      const { done } = await reader.read()
-      if (done) break
-    }
-
-    // NOTE: Even if the SP (ProofSet owner) is not supported, the retrieval can still
-    // succeed in case that somebody else stored the same file with a participating SP.
-    // For that reason, we are not alerting when this happens.
-  }
+  await testRetrieval({
+    clientAddress,
+    CDN_HOSTNAME,
+    rootCid,
+    isSupportedSP,
+    setId,
+    rootId,
+    ownerUrl,
+  })
 }
 
 /**
