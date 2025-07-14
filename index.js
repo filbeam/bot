@@ -156,12 +156,8 @@ async function pickRandomFileWithCDN({
   FROM_PROOFSET_ID,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
-  /** @type {Map<BigInt, boolean>} */
-  const cachedProofSetsLive = new Map()
   /** @type {Map<BigInt, ProofSetInfo>} */
   const cachedProofSetsInfo = new Map()
-  /** @type {Map<string, boolean>} */
-  const cachedApprovedProviders = new Map()
 
   const nextProofSetId = await pdpVerifier.getNextProofSetId()
   console.log('Number of proof sets:', nextProofSetId)
@@ -180,10 +176,7 @@ async function pickRandomFileWithCDN({
       )
     console.log('Picked proof set id:', setId)
 
-    const proofSetLive =
-      cachedProofSetsLive.get(setId) ?? (await pdpVerifier.proofSetLive(setId))
-    cachedProofSetsLive.set(setId, proofSetLive)
-
+    const proofSetLive = await pdpVerifier.proofSetLive(setId)
     if (!proofSetLive) {
       console.log('Proof set is not live, restarting the sampling algorithm')
       continue
@@ -204,10 +197,7 @@ async function pickRandomFileWithCDN({
     }
 
     const providerIsApproved =
-      cachedApprovedProviders.get(providerAddress) ??
-      (await pandoraService.isProviderApproved(providerAddress))
-    cachedApprovedProviders.set(providerAddress, providerIsApproved)
-
+      await pandoraService.isProviderApproved(providerAddress)
     if (!providerIsApproved) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
@@ -249,25 +239,6 @@ async function pickRandomFileWithCDN({
     if (IGNORED_ROOTS.includes(`${setId}:${rootCid}`)) {
       console.log(
         'We are ignoring this root, restarting the sampling algorithm',
-      )
-      continue
-    }
-
-    // We were using cached values of `proofSetLive` and `isProviderApproved` in the checks above.
-    // They might have changed since then, so we need to double-check them again.
-
-    if (!(await pdpVerifier.proofSetLive(setId))) {
-      cachedProofSetsLive.set(setId, false)
-      console.log(
-        'Proof set is not live anymore, restarting the sampling algorithm',
-      )
-      continue
-    }
-
-    if (!(await pandoraService.isProviderApproved(providerAddress))) {
-      cachedApprovedProviders.set(providerAddress, false)
-      console.log(
-        'Provider is not approved anymore, restarting the sampling algorithm',
       )
       continue
     }
