@@ -156,8 +156,6 @@ async function pickRandomFileWithCDN({
   FROM_PROOFSET_ID,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
-  /** @type {Map<BigInt, boolean>} */
-  const cachedProofSetsLive = new Map()
   /** @type {Map<BigInt, ProofSetInfo>} */
   const cachedProofSetsInfo = new Map()
   /** @type {Map<string, boolean>} */
@@ -180,10 +178,7 @@ async function pickRandomFileWithCDN({
       )
     console.log('Picked proof set id:', setId)
 
-    const proofSetLive =
-      cachedProofSetsLive.get(setId) ?? (await pdpVerifier.proofSetLive(setId))
-    cachedProofSetsLive.set(setId, proofSetLive)
-
+    const proofSetLive = await pdpVerifier.proofSetLive(setId)
     if (!proofSetLive) {
       console.log('Proof set is not live, restarting the sampling algorithm')
       continue
@@ -253,16 +248,8 @@ async function pickRandomFileWithCDN({
       continue
     }
 
-    // We were using cached values of `proofSetLive` and `isProviderApproved` in the checks above.
+    // We were using a cached value of `isProviderApproved` in the checks above.
     // They might have changed since then, so we need to double-check them again.
-
-    if (!(await pdpVerifier.proofSetLive(setId))) {
-      cachedProofSetsLive.set(setId, false)
-      console.log(
-        'Proof set is not live anymore, restarting the sampling algorithm',
-      )
-      continue
-    }
 
     if (!(await pandoraService.isProviderApproved(providerAddress))) {
       cachedApprovedProviders.set(providerAddress, false)
