@@ -196,7 +196,8 @@ async function pickRandomFileWithCDN({
       continue
     }
 
-    const providerIsApproved = await pandoraService.isProviderApproved(providerAddress)
+    const providerIsApproved =
+      await pandoraService.isProviderApproved(providerAddress)
     if (!providerIsApproved) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
