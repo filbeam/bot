@@ -158,8 +158,6 @@ async function pickRandomFileWithCDN({
   // Cache state query responses to speed up the sampling algorithm.
   /** @type {Map<BigInt, ProofSetInfo>} */
   const cachedProofSetsInfo = new Map()
-  /** @type {Map<string, boolean>} */
-  const cachedApprovedProviders = new Map()
 
   const nextProofSetId = await pdpVerifier.getNextProofSetId()
   console.log('Number of proof sets:', nextProofSetId)
@@ -198,11 +196,7 @@ async function pickRandomFileWithCDN({
       continue
     }
 
-    const providerIsApproved =
-      cachedApprovedProviders.get(providerAddress) ??
-      (await pandoraService.isProviderApproved(providerAddress))
-    cachedApprovedProviders.set(providerAddress, providerIsApproved)
-
+    const providerIsApproved = await pandoraService.isProviderApproved(providerAddress)
     if (!providerIsApproved) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
@@ -244,17 +238,6 @@ async function pickRandomFileWithCDN({
     if (IGNORED_ROOTS.includes(`${setId}:${rootCid}`)) {
       console.log(
         'We are ignoring this root, restarting the sampling algorithm',
-      )
-      continue
-    }
-
-    // We were using a cached value of `isProviderApproved` in the checks above.
-    // They might have changed since then, so we need to double-check them again.
-
-    if (!(await pandoraService.isProviderApproved(providerAddress))) {
-      cachedApprovedProviders.set(providerAddress, false)
-      console.log(
-        'Provider is not approved anymore, restarting the sampling algorithm',
       )
       continue
     }
