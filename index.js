@@ -93,23 +93,25 @@ export const pandoraServiceAbi = [
 
 /**
  * @param {object} args
+ * @param {PdpVerifier} args.pdpVerifier
+ * @param {PandoraService} args.pandoraService
  * @param {string} args.clientAddress
  * @param {string} args.CDN_HOSTNAME
  * @param {string} args.rootCid
  * @param {BigInt} args.setId
  * @param {BigInt} args.rootId
- * @param {string} args.pieceRetrievalUrl
  * @param {boolean} [args.retryOn404=true] Default is `true`
  * @param {number} [args.retryDelayMs=10_000] Default is `10_000`
  * @returns {Promise<void>}
  */
 async function testRetrieval({
+  pdpVerifier,
+  pandoraService,
   clientAddress,
   CDN_HOSTNAME,
   rootCid,
   setId,
   rootId,
-  pieceRetrievalUrl,
   retryOn404 = true,
   retryDelayMs = 10_000,
 }) {
@@ -127,21 +129,32 @@ async function testRetrieval({
       )
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
       return testRetrieval({
+        pdpVerifier,
+        pandoraService,
         clientAddress,
         CDN_HOSTNAME,
         rootCid,
         setId,
         rootId,
-        pieceRetrievalUrl,
         retryOn404: false,
       })
     }
 
+    const proofSetIdHeaderValue = res.headers.get('x-proof-set-id')
+    const pieceRetrievalUrl = await tryGetResolvedProofSetRetrievalUrl({
+      pdpVerifier,
+      pandoraService,
+      proofSetIdHeaderValue,
+    })
+
     console.error(
-      'ALERT Cannot retrieve ProofSet %s Root %s SP %s via %s: %s %s',
+      'ALERT Cannot retrieve ProofSet %s Root %s (resolved as ProofSet %s from SP %s) via %s: %s %s',
       String(setId),
       String(rootId),
-      URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl,
+      proofSetIdHeaderValue ?? '(not reported)',
+      pieceRetrievalUrl
+        ? (URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl)
+        : '(unknown)',
       url,
       res.status,
       reason,
@@ -153,6 +166,40 @@ async function testRetrieval({
       if (done) break
     }
   }
+}
+
+/**
+ * @param {object} args
+ * @param {PdpVerifier} args.pdpVerifier
+ * @param {PandoraService} args.pandoraService
+ * @param {string | null} args.proofSetIdHeaderValue
+ * @returns {Promise<string | undefined>} The piece retrieval URL
+ */
+async function tryGetResolvedProofSetRetrievalUrl({
+  pdpVerifier,
+  pandoraService,
+  proofSetIdHeaderValue,
+}) {
+  if (proofSetIdHeaderValue === null || proofSetIdHeaderValue === '') {
+    return undefined
+  }
+
+  let proofSetId
+  try {
+    proofSetId = BigInt(proofSetIdHeaderValue)
+  } catch (err) {
+    console.warn(
+      'FilCDN reported invalid ProofSetID %j: %s',
+      proofSetIdHeaderValue,
+      err,
+    )
+    return undefined
+  }
+
+  const [proofSetOwner] = await pdpVerifier.getProofSetOwner(proofSetId)
+  const providerId = await pandoraService.getProviderIdByAddress(proofSetOwner)
+  const providerInfo = await pandoraService.getApprovedProvider(providerId)
+  return providerInfo.pieceRetrievalUrl
 }
 
 /**
@@ -177,24 +224,14 @@ export async function sampleRetrieval({
     },
   )
 
-  const [proofSetOwner] = await pdpVerifier.getProofSetOwner(setId)
-  const providerId = await pandoraService.getProviderIdByAddress(proofSetOwner)
-  const providerInfo = await pandoraService.getApprovedProvider(providerId)
-  const { pieceRetrievalUrl } = providerInfo
-  console.log(
-    'Proof set owner: %s ID=%s URL=%s',
-    proofSetOwner,
-    providerId.toString(),
-    pieceRetrievalUrl,
-  )
-
   await testRetrieval({
+    pdpVerifier,
+    pandoraService,
     clientAddress,
     CDN_HOSTNAME,
     rootCid,
     setId,
     rootId,
-    pieceRetrievalUrl,
   })
 }
 
