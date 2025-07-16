@@ -5,6 +5,7 @@ import assert from 'node:assert'
 const IGNORED_ROOTS = [
   '212:baga6ea4seaqjlh5gvyf4v4nuwige3nynttmus2kxgr4s6c6rf2pjfkr5cu4rgci',
   '339:baga6ea4seaqnx4gnoeuqjyu7ctmhqtow4nnzukdfuyw3wr5bm73o5vlvbl5mgny',
+  '442:baga6ea4seaqnbpfza3wl5fgu7gnfcyh5h6zufn4skwt6clylnzaw5k6maiwt6ay',
 ]
 
 export const pdpVerifierAbi = [
@@ -92,6 +93,70 @@ export const pandoraServiceAbi = [
 
 /**
  * @param {object} args
+ * @param {string} args.clientAddress
+ * @param {string} args.CDN_HOSTNAME
+ * @param {string} args.rootCid
+ * @param {BigInt} args.setId
+ * @param {BigInt} args.rootId
+ * @param {string} args.pieceRetrievalUrl
+ * @param {boolean} [args.retryOn404=true] Default is `true`
+ * @param {number} [args.retryDelayMs=10_000] Default is `10_000`
+ * @returns {Promise<void>}
+ */
+async function testRetrieval({
+  clientAddress,
+  CDN_HOSTNAME,
+  rootCid,
+  setId,
+  rootId,
+  pieceRetrievalUrl,
+  retryOn404 = true,
+  retryDelayMs = 10_000,
+}) {
+  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${rootCid}`
+  console.log('Fetching', url)
+  const res = await fetch(url)
+  console.log('-> Status code:', res.status)
+  if (!res.ok) {
+    const reason = (await res.text()).trim()
+    console.log(reason)
+
+    if (res.status === 404 && retryOn404) {
+      console.log(
+        `Retrying once after ${retryDelayMs}ms due to 404 error, maybe the indexer hasn't caught up yet`,
+      )
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+      return testRetrieval({
+        clientAddress,
+        CDN_HOSTNAME,
+        rootCid,
+        setId,
+        rootId,
+        pieceRetrievalUrl,
+        retryOn404: false,
+      })
+    }
+
+    console.error(
+      'ALERT Cannot retrieve ProofSet %s Root %s SP %s via %s: %s %s',
+      String(setId),
+      String(rootId),
+      URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl,
+      url,
+      res.status,
+      reason,
+    )
+  } else if (res.body) {
+    const reader = res.body.getReader()
+    while (true) {
+      const { done } = await reader.read()
+      if (done) break
+    }
+  }
+}
+
+/**
+ * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {string} args.CDN_HOSTNAME
@@ -123,30 +188,14 @@ export async function sampleRetrieval({
     pieceRetrievalUrl,
   )
 
-  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${rootCid}`
-  console.log('Fetching', url)
-  const res = await fetch(url)
-  console.log('-> Status code:', res.status)
-  if (!res.ok) {
-    const reason = (await res.text()).trim()
-    console.log(reason)
-
-    console.error(
-      'ALERT Cannot retrieve ProofSet %s Root %s SP %s via %s: %s %s',
-      String(setId),
-      String(rootId),
-      URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl,
-      url,
-      res.status,
-      reason,
-    )
-  } else if (res.body) {
-    const reader = res.body.getReader()
-    while (true) {
-      const { done } = await reader.read()
-      if (done) break
-    }
-  }
+  await testRetrieval({
+    clientAddress,
+    CDN_HOSTNAME,
+    rootCid,
+    setId,
+    rootId,
+    pieceRetrievalUrl,
+  })
 }
 
 /**
@@ -168,12 +217,8 @@ async function pickRandomFileWithCDN({
   FROM_PROOFSET_ID,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
-  /** @type {Map<BigInt, boolean>} */
-  const cachedProofSetsLive = new Map()
   /** @type {Map<BigInt, ProofSetInfo>} */
   const cachedProofSetsInfo = new Map()
-  /** @type {Map<string, boolean>} */
-  const cachedApprovedProviders = new Map()
 
   const nextProofSetId = await pdpVerifier.getNextProofSetId()
   console.log('Number of proof sets:', nextProofSetId)
@@ -192,10 +237,7 @@ async function pickRandomFileWithCDN({
       )
     console.log('Picked proof set id:', setId)
 
-    const proofSetLive =
-      cachedProofSetsLive.get(setId) ?? (await pdpVerifier.proofSetLive(setId))
-    cachedProofSetsLive.set(setId, proofSetLive)
-
+    const proofSetLive = await pdpVerifier.proofSetLive(setId)
     if (!proofSetLive) {
       console.log('Proof set is not live, restarting the sampling algorithm')
       continue
@@ -216,10 +258,7 @@ async function pickRandomFileWithCDN({
     }
 
     const providerIsApproved =
-      cachedApprovedProviders.get(providerAddress) ??
-      (await pandoraService.isProviderApproved(providerAddress))
-    cachedApprovedProviders.set(providerAddress, providerIsApproved)
-
+      await pandoraService.isProviderApproved(providerAddress)
     if (!providerIsApproved) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
@@ -261,25 +300,6 @@ async function pickRandomFileWithCDN({
     if (IGNORED_ROOTS.includes(`${setId}:${rootCid}`)) {
       console.log(
         'We are ignoring this root, restarting the sampling algorithm',
-      )
-      continue
-    }
-
-    // We were using cached values of `proofSetLive` and `isProviderApproved` in the checks above.
-    // They might have changed since then, so we need to double-check them again.
-
-    if (!(await pdpVerifier.proofSetLive(setId))) {
-      cachedProofSetsLive.set(setId, false)
-      console.log(
-        'Proof set is not live anymore, restarting the sampling algorithm',
-      )
-      continue
-    }
-
-    if (!(await pandoraService.isProviderApproved(providerAddress))) {
-      cachedApprovedProviders.set(providerAddress, false)
-      console.log(
-        'Provider is not approved anymore, restarting the sampling algorithm',
       )
       continue
     }
