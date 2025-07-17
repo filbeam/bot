@@ -1,5 +1,4 @@
 import { ethers } from 'ethers'
-import assert from 'node:assert'
 import { pandoraServiceAbi } from './index.js'
 
 const {
