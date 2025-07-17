@@ -141,7 +141,7 @@ async function testRetrieval({
     }
 
     const proofSetIdHeaderValue = res.headers.get('x-proof-set-id')
-    const pieceRetrievalUrl = await tryGetResolvedProofSetRetrievalUrl({
+    const pieceRetrievalUrl = await maybeGetResolvedProofSetRetrievalUrl({
       pdpVerifier,
       pandoraService,
       proofSetIdHeaderValue,
@@ -175,7 +175,7 @@ async function testRetrieval({
  * @param {string | null} args.proofSetIdHeaderValue
  * @returns {Promise<string | undefined>} The piece retrieval URL
  */
-async function tryGetResolvedProofSetRetrievalUrl({
+async function maybeGetResolvedProofSetRetrievalUrl({
   pdpVerifier,
   pandoraService,
   proofSetIdHeaderValue,
