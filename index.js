@@ -1,6 +1,5 @@
 import { CID } from 'multiformats/cid'
 import assert from 'node:assert'
-import { OWNER_TO_RETRIEVAL_URL_MAPPING } from './vendored/retriever-constants.js'
 
 // A list of (setId, rootCid) pairs to not retrieve because the SP is not serving retrievals
 const IGNORED_ROOTS = [
@@ -49,6 +48,14 @@ export const pandoraServiceAbi = [
     bool withCDN,
   ) memory)`,
   'function isProviderApproved(address provider) external view returns (bool)',
+  'function getProviderIdByAddress(address provider) external view returns (uint256)',
+  `function getApprovedProvider(uint256 providerId) external view returns (tuple(
+    address owner,
+    string pdpUrl,
+    string pieceRetrievalUrl,
+    uint256 registeredAt,
+    uint256 approvedAt,
+  ) memory)`,
 ]
 
 /**
@@ -66,33 +73,45 @@ export const pandoraServiceAbi = [
 
 /**
  * @typedef {{
+ *   owner: string
+ *   pdpUrl: string
+ *   pieceRetrievalUrl: string
+ *   registeredAt: BigInt
+ *   approvedAt: BigInt
+ * }} ApprovedProviderInfo
+ */
+
+/**
+ * @typedef {{
  *   getProofSetWithCDN(setId: BigInt): Promise<boolean>
  *   getProofSet(setId: BigInt): Promise<ProofSetInfo>
  *   isProviderApproved(provider: string): Promise<boolean>
+ *   getProviderIdByAddress(provider: string): Promise<BigInt>
+ *   getApprovedProvider(providerId: BigInt): Promise<ApprovedProviderInfo>
  * }} PandoraService
  */
 
 /**
  * @param {object} args
+ * @param {PdpVerifier} args.pdpVerifier
+ * @param {PandoraService} args.pandoraService
  * @param {string} args.clientAddress
  * @param {string} args.CDN_HOSTNAME
  * @param {string} args.rootCid
- * @param {boolean} args.isSupportedSP
  * @param {BigInt} args.setId
  * @param {BigInt} args.rootId
- * @param {string} args.ownerUrl
  * @param {boolean} [args.retryOn404=true] Default is `true`
  * @param {number} [args.retryDelayMs=10_000] Default is `10_000`
  * @returns {Promise<void>}
  */
 async function testRetrieval({
+  pdpVerifier,
+  pandoraService,
   clientAddress,
   CDN_HOSTNAME,
   rootCid,
-  isSupportedSP,
   setId,
   rootId,
-  ownerUrl,
   retryOn404 = true,
   retryDelayMs = 10_000,
 }) {
@@ -110,38 +129,86 @@ async function testRetrieval({
       )
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
       return testRetrieval({
+        pdpVerifier,
+        pandoraService,
         clientAddress,
         CDN_HOSTNAME,
         rootCid,
-        isSupportedSP,
         setId,
         rootId,
-        ownerUrl,
         retryOn404: false,
       })
     }
 
-    if (isSupportedSP) {
-      console.error(
-        'ALERT Cannot retrieve ProofSet %s Root %s SP %s via %s: %s %s',
-        String(setId),
-        String(rootId),
-        URL.parse(ownerUrl)?.hostname ?? ownerUrl,
-        url,
-        res.status,
-        reason,
-      )
-    }
+    const proofSetIdHeaderValue = res.headers.get('x-proof-set-id')
+    const pieceRetrievalUrl = await maybeGetResolvedProofSetRetrievalUrl({
+      pdpVerifier,
+      pandoraService,
+      proofSetIdHeaderValue,
+    })
+
+    console.error(
+      'ALERT Cannot retrieve ProofSet %s Root %s (resolved as ProofSet %s from SP %s) via %s: %s %s',
+      String(setId),
+      String(rootId),
+      proofSetIdHeaderValue ?? '<not reported>',
+      pieceRetrievalUrl
+        ? (URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl)
+        : '<unknown>',
+      url,
+      res.status,
+      reason,
+    )
   } else if (res.body) {
     const reader = res.body.getReader()
     while (true) {
       const { done } = await reader.read()
       if (done) break
     }
+  }
+}
 
-    // NOTE: Even if the SP (ProofSet owner) is not supported, the retrieval can still
-    // succeed in case that somebody else stored the same file with a participating SP.
-    // For that reason, we are not alerting when this happens.
+/**
+ * @param {object} args
+ * @param {PdpVerifier} args.pdpVerifier
+ * @param {PandoraService} args.pandoraService
+ * @param {string | null} args.proofSetIdHeaderValue
+ * @returns {Promise<string | undefined>} The piece retrieval URL
+ */
+async function maybeGetResolvedProofSetRetrievalUrl({
+  pdpVerifier,
+  pandoraService,
+  proofSetIdHeaderValue,
+}) {
+  if (proofSetIdHeaderValue === null || proofSetIdHeaderValue === '') {
+    return undefined
+  }
+
+  let proofSetId
+  try {
+    proofSetId = BigInt(proofSetIdHeaderValue)
+  } catch (err) {
+    console.warn(
+      'FilCDN reported invalid ProofSetID %j: %s',
+      proofSetIdHeaderValue,
+      err,
+    )
+    return undefined
+  }
+
+  try {
+    const [proofSetOwner] = await pdpVerifier.getProofSetOwner(proofSetId)
+    const providerId =
+      await pandoraService.getProviderIdByAddress(proofSetOwner)
+    const providerInfo = await pandoraService.getApprovedProvider(providerId)
+    return providerInfo.pieceRetrievalUrl
+  } catch (err) {
+    console.warn(
+      'Failed to fetch owner & provider info for ProofSetID %s: %s',
+      proofSetId,
+      err,
+    )
+    return undefined
   }
 }
 
@@ -167,25 +234,14 @@ export async function sampleRetrieval({
     },
   )
 
-  const [proofSetOwner] = await pdpVerifier.getProofSetOwner(setId)
-  const ownerUrl =
-    OWNER_TO_RETRIEVAL_URL_MAPPING[proofSetOwner.toLowerCase()]?.url
-  const isSupportedSP = !!ownerUrl
-  console.log(
-    'Proof set owner: %s (%s) supported? %s',
-    proofSetOwner,
-    ownerUrl ?? 'unknown SP',
-    isSupportedSP,
-  )
-
   await testRetrieval({
+    pdpVerifier,
+    pandoraService,
     clientAddress,
     CDN_HOSTNAME,
     rootCid,
-    isSupportedSP,
     setId,
     rootId,
-    ownerUrl,
   })
 }
 
