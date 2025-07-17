@@ -354,3 +354,114 @@ async function pickRandomFileWithCDN({
     return { rootCid, setId, rootId, clientAddress }
   }
 }
+
+/**
+ * @param {object} args
+ * @param {PdpVerifier} args.pdpVerifier
+ * @param {PandoraService} args.pandoraService
+ * @param {string} args.CDN_HOSTNAME
+ */
+
+export async function testLatestRetrievableRoot({
+  pdpVerifier,
+  pandoraService,
+  CDN_HOSTNAME
+}) {
+  const { rootCid, proofSetId, rootId, clientAddress } = await getMostRecentFileWithCDN(
+    {
+      pdpVerifier,
+      pandoraService
+    },
+  )
+
+  await testRetrieval({
+    pdpVerifier,
+    pandoraService,
+    clientAddress,
+    CDN_HOSTNAME,
+    rootCid,
+    setId: proofSetId,
+    rootId,
+  })
+}
+
+/**
+ * @param {Object} args
+ * @param {PdpVerifier} args.pdpVerifier
+ * @param {PandoraService} args.pandoraService
+ * @returns {Promise<{
+ *   rootCid: string
+ *   proofSetId: BigInt
+ *   rootId: BigInt
+ *   clientAddress: string
+ * }>}
+ *   The CommP CID of the file.
+ */
+async function getMostRecentFileWithCDN({
+  pdpVerifier,
+  pandoraService
+}) {
+  for (
+    let proofSetId = (await pdpVerifier.getNextProofSetId()) - 1n;
+    proofSetId >= 0n;
+    proofSetId--
+  ) {
+    console.log('Checking proof set ID:', proofSetId)
+
+    const proofSetLive = await pdpVerifier.proofSetLive(proofSetId)
+    if (!proofSetLive) {
+      console.log('Proof set is not live')
+      continue
+    }
+
+    const info = await pandoraService.getProofSet(proofSetId)
+    const { withCDN, payer: clientAddress, payee: providerAddress } = info
+
+    if (!withCDN) {
+      console.log(
+        'Proof set does not pay for CDN',
+      )
+      continue
+    }
+
+    const providerIsApproved =
+      await pandoraService.isProviderApproved(providerAddress)
+    if (!providerIsApproved) {
+      console.log('Provider is not approved')
+      continue
+    }
+
+    console.log('Proofset client:', clientAddress)
+
+    // Pick the most recently uploaded file that wasn't deleted yet.
+
+    for (
+      let rootId = await pdpVerifier.getNextRootId(proofSetId) - 1n;
+      rootId >= 0n;
+      rootId--
+    ) {
+      console.log('Checking root ID:', rootId)
+      const rootIsLive = await pdpVerifier.rootLive(proofSetId, rootId)
+      if (!rootIsLive) {
+        console.log('Root is not live')
+        continue
+      }
+
+      const [rootCidRaw] = await pdpVerifier.getRootCid(proofSetId, rootId)
+      console.log('Found CommP:', rootCidRaw)
+      const cidBytes = Buffer.from(rootCidRaw.slice(2), 'hex')
+      const rootCidObj = CID.decode(cidBytes)
+      console.log('Converted to CommP CID:', rootCidObj)
+      const rootCid = rootCidObj.toString()
+
+      if (IGNORED_ROOTS.includes(`${proofSetId}:${rootCid}`)) {
+        console.log('We are ignoring this root')
+        continue
+      }
+
+      return { rootCid, proofSetId, rootId, clientAddress }
+    }
+  }
+
+  throw new Error('No suitable root found')
+}
