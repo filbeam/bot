@@ -151,10 +151,10 @@ async function testRetrieval({
       'ALERT Cannot retrieve ProofSet %s Root %s (resolved as ProofSet %s from SP %s) via %s: %s %s',
       String(setId),
       String(rootId),
-      proofSetIdHeaderValue ?? '(not reported)',
+      proofSetIdHeaderValue ?? '<not reported>',
       pieceRetrievalUrl
         ? (URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl)
-        : '(unknown)',
+        : '<unknown>',
       url,
       res.status,
       reason,
@@ -196,10 +196,20 @@ async function maybeGetResolvedProofSetRetrievalUrl({
     return undefined
   }
 
-  const [proofSetOwner] = await pdpVerifier.getProofSetOwner(proofSetId)
-  const providerId = await pandoraService.getProviderIdByAddress(proofSetOwner)
-  const providerInfo = await pandoraService.getApprovedProvider(providerId)
-  return providerInfo.pieceRetrievalUrl
+  try {
+    const [proofSetOwner] = await pdpVerifier.getProofSetOwner(proofSetId)
+    const providerId =
+      await pandoraService.getProviderIdByAddress(proofSetOwner)
+    const providerInfo = await pandoraService.getApprovedProvider(providerId)
+    return providerInfo.pieceRetrievalUrl
+  } catch (err) {
+    console.warn(
+      'Failed to fetch owner & provider info for ProofSetID %s: %s',
+      proofSetId,
+      err,
+    )
+    return undefined
+  }
 }
 
 /**
