@@ -1,6 +1,11 @@
 import { setTimeout } from 'node:timers/promises'
 import { ethers } from 'ethers'
-import { pandoraServiceAbi, pdpVerifierAbi, sampleRetrieval, testLatestRetrievableRoot } from '../index.js'
+import {
+  pandoraServiceAbi,
+  pdpVerifierAbi,
+  sampleRetrieval,
+  testLatestRetrievableRoot,
+} from '../index.js'
 
 const {
   GLIF_TOKEN,
@@ -48,12 +53,10 @@ await Promise.all([
       await testLatestRetrievableRoot({
         pdpVerifier,
         pandoraService,
-        CDN_HOSTNAME
+        CDN_HOSTNAME,
       })
       console.log('\n')
       await setTimeout(Number(30_000)) // block time
     }
-  })()
+  })(),
 ])
-
-

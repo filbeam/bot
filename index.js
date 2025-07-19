@@ -365,14 +365,13 @@ async function pickRandomFileWithCDN({
 export async function testLatestRetrievableRoot({
   pdpVerifier,
   pandoraService,
-  CDN_HOSTNAME
+  CDN_HOSTNAME,
 }) {
-  const { rootCid, proofSetId, rootId, clientAddress } = await getMostRecentFileWithCDN(
-    {
+  const { rootCid, proofSetId, rootId, clientAddress } =
+    await getMostRecentFileWithCDN({
       pdpVerifier,
-      pandoraService
-    },
-  )
+      pandoraService,
+    })
 
   await testRetrieval({
     pdpVerifier,
@@ -397,10 +396,7 @@ export async function testLatestRetrievableRoot({
  * }>}
  *   The CommP CID of the file.
  */
-async function getMostRecentFileWithCDN({
-  pdpVerifier,
-  pandoraService
-}) {
+async function getMostRecentFileWithCDN({ pdpVerifier, pandoraService }) {
   for (
     let proofSetId = (await pdpVerifier.getNextProofSetId()) - 1n;
     proofSetId >= 0n;
@@ -418,9 +414,7 @@ async function getMostRecentFileWithCDN({
     const { withCDN, payer: clientAddress, payee: providerAddress } = info
 
     if (!withCDN) {
-      console.log(
-        'Proof set does not pay for CDN',
-      )
+      console.log('Proof set does not pay for CDN')
       continue
     }
 
@@ -436,7 +430,7 @@ async function getMostRecentFileWithCDN({
     // Pick the most recently uploaded file that wasn't deleted yet.
 
     for (
-      let rootId = await pdpVerifier.getNextRootId(proofSetId) - 1n;
+      let rootId = (await pdpVerifier.getNextRootId(proofSetId)) - 1n;
       rootId >= 0n;
       rootId--
     ) {
