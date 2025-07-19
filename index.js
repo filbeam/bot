@@ -360,17 +360,20 @@ async function pickRandomFileWithCDN({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {string} args.CDN_HOSTNAME
+ * @param {BigInt} args.FROM_PROOFSET_ID
  */
 
 export async function testLatestRetrievableRoot({
   pdpVerifier,
   pandoraService,
   CDN_HOSTNAME,
+  FROM_PROOFSET_ID,
 }) {
   const { rootCid, proofSetId, rootId, clientAddress } =
     await getMostRecentFileWithCDN({
       pdpVerifier,
       pandoraService,
+      FROM_PROOFSET_ID,
     })
 
   await testRetrieval({
@@ -388,6 +391,7 @@ export async function testLatestRetrievableRoot({
  * @param {Object} args
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
+ * @param {BigInt} args.FROM_PROOFSET_ID
  * @returns {Promise<{
  *   rootCid: string
  *   proofSetId: BigInt
@@ -396,10 +400,14 @@ export async function testLatestRetrievableRoot({
  * }>}
  *   The CommP CID of the file.
  */
-async function getMostRecentFileWithCDN({ pdpVerifier, pandoraService }) {
+async function getMostRecentFileWithCDN({
+  pdpVerifier,
+  pandoraService,
+  FROM_PROOFSET_ID,
+}) {
   for (
     let proofSetId = (await pdpVerifier.getNextProofSetId()) - 1n;
-    proofSetId >= 0n;
+    proofSetId >= 0n && proofSetId >= FROM_PROOFSET_ID;
     proofSetId--
   ) {
     console.log('Checking proof set ID:', proofSetId)

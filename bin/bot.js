@@ -54,6 +54,7 @@ await Promise.all([
         pdpVerifier,
         pandoraService,
         CDN_HOSTNAME,
+        FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
       })
       console.log('\n')
       await setTimeout(Number(30_000)) // block time
