@@ -8,6 +8,7 @@ import {
 } from '../index.js'
 
 const {
+  FLY_REGION,
   GLIF_TOKEN,
   RPC_URL = 'https://api.calibration.node.glif.io/',
   PDP_VERIFIER_ADDRESS = '0x5A23b7df87f59A291C26A2A1d684AD03Ce9B68DC',
@@ -41,6 +42,7 @@ await Promise.all([
       await sampleRetrieval({
         pdpVerifier,
         pandoraService,
+        botLocation: FLY_REGION,
         CDN_HOSTNAME,
         FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
       })
@@ -53,6 +55,7 @@ await Promise.all([
       await testLatestRetrievableRoot({
         pdpVerifier,
         pandoraService,
+        botLocation: FLY_REGION,
         CDN_HOSTNAME,
         FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
       })
