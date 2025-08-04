@@ -96,6 +96,7 @@ export const pandoraServiceAbi = [
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {string} args.clientAddress
+ * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
  * @param {string} args.rootCid
  * @param {BigInt} args.setId
@@ -108,6 +109,7 @@ async function testRetrieval({
   pdpVerifier,
   pandoraService,
   clientAddress,
+  botLocation,
   CDN_HOSTNAME,
   rootCid,
   setId,
@@ -132,6 +134,7 @@ async function testRetrieval({
         pdpVerifier,
         pandoraService,
         clientAddress,
+        botLocation,
         CDN_HOSTNAME,
         rootCid,
         setId,
@@ -148,13 +151,14 @@ async function testRetrieval({
     })
 
     console.error(
-      'ALERT Cannot retrieve ProofSet %s Root %s (resolved as ProofSet %s from SP %s) via %s: %s %s',
+      'ALERT Cannot retrieve ProofSet %s Root %s (resolved as ProofSet %s from SP %s) from %s via %s: %s %s',
       String(setId),
       String(rootId),
       proofSetIdHeaderValue ?? '<not reported>',
       pieceRetrievalUrl
         ? (URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl)
         : '<unknown>',
+      botLocation ?? '<dev>',
       url,
       res.status,
       reason,
@@ -216,6 +220,7 @@ async function maybeGetResolvedProofSetRetrievalUrl({
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
+ * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
  * @param {BigInt} args.FROM_PROOFSET_ID
  */
@@ -223,6 +228,7 @@ async function maybeGetResolvedProofSetRetrievalUrl({
 export async function sampleRetrieval({
   pdpVerifier,
   pandoraService,
+  botLocation = '<dev>',
   CDN_HOSTNAME,
   FROM_PROOFSET_ID,
 }) {
@@ -238,6 +244,7 @@ export async function sampleRetrieval({
     pdpVerifier,
     pandoraService,
     clientAddress,
+    botLocation,
     CDN_HOSTNAME,
     rootCid,
     setId,
@@ -359,6 +366,7 @@ async function pickRandomFileWithCDN({
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
+ * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
  * @param {BigInt} args.FROM_PROOFSET_ID
  */
@@ -366,6 +374,7 @@ async function pickRandomFileWithCDN({
 export async function testLatestRetrievableRoot({
   pdpVerifier,
   pandoraService,
+  botLocation,
   CDN_HOSTNAME,
   FROM_PROOFSET_ID,
 }) {
@@ -380,6 +389,7 @@ export async function testLatestRetrievableRoot({
     pdpVerifier,
     pandoraService,
     clientAddress,
+    botLocation,
     CDN_HOSTNAME,
     rootCid,
     setId: proofSetId,
