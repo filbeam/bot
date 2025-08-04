@@ -1,8 +1,14 @@
 import { setTimeout } from 'node:timers/promises'
 import { ethers } from 'ethers'
-import { pandoraServiceAbi, pdpVerifierAbi, sampleRetrieval } from '../index.js'
+import {
+  pandoraServiceAbi,
+  pdpVerifierAbi,
+  sampleRetrieval,
+  testLatestRetrievableRoot,
+} from '../index.js'
 
 const {
+  FLY_REGION,
   GLIF_TOKEN,
   RPC_URL = 'https://api.calibration.node.glif.io/',
   PDP_VERIFIER_ADDRESS = '0x5A23b7df87f59A291C26A2A1d684AD03Ce9B68DC',
@@ -30,13 +36,31 @@ const pandoraService = /** @type {any} */ (
   new ethers.Contract(PANDORA_SERVICE_ADDRESS, pandoraServiceAbi, provider)
 )
 
-while (true) {
-  await sampleRetrieval({
-    pdpVerifier,
-    pandoraService,
-    CDN_HOSTNAME,
-    FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
-  })
-  console.log('\n')
-  await setTimeout(Number(DELAY))
-}
+await Promise.all([
+  (async () => {
+    while (true) {
+      await sampleRetrieval({
+        pdpVerifier,
+        pandoraService,
+        botLocation: FLY_REGION,
+        CDN_HOSTNAME,
+        FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+      })
+      console.log('\n')
+      await setTimeout(Number(DELAY))
+    }
+  })(),
+  (async () => {
+    while (true) {
+      await testLatestRetrievableRoot({
+        pdpVerifier,
+        pandoraService,
+        botLocation: FLY_REGION,
+        CDN_HOSTNAME,
+        FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+      })
+      console.log('\n')
+      await setTimeout(Number(30_000)) // block time
+    }
+  })(),
+])
