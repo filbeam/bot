@@ -45,6 +45,7 @@ await Promise.all([
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
         FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+        withCDN: true,
       })
       console.log('\n')
       await setTimeout(Number(DELAY))
@@ -58,6 +59,7 @@ await Promise.all([
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
         FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+        withCDN: true,
       })
       console.log('\n')
       await setTimeout(Number(30_000)) // block time

@@ -107,6 +107,7 @@ export const pandoraServiceAbi = [
  * @param {string} args.rootCid
  * @param {BigInt} args.setId
  * @param {BigInt} args.rootId
+ * @param {boolean} [args.withCDN=true] Default is `true`
  * @param {boolean} [args.retryOn404=true] Default is `true`
  * @param {number} [args.retryDelayMs=10_000] Default is `10_000`
  * @returns {Promise<void>}
@@ -120,10 +121,28 @@ async function testRetrieval({
   rootCid,
   setId,
   rootId,
+  withCDN = true,
   retryOn404 = true,
   retryDelayMs = 10_000,
 }) {
-  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${rootCid}`
+  let baseUrl
+  if (withCDN) {
+    baseUrl = `https://${clientAddress}.${CDN_HOSTNAME}`
+  } else {
+    baseUrl = await maybeGetResolvedProofSetRetrievalUrl({
+      pdpVerifier,
+      pandoraService,
+      proofSetId: setId,
+    })
+    if (!baseUrl) {
+      console.error(
+        `Cannot resolve retrieval URL for ProofSet ${setId} Root ${rootId} from ${botLocation ?? '<dev>'}`,
+      )
+      return
+    }
+  }
+
+  const url = `${baseUrl}/${rootCid}`
   console.log('Fetching', url)
   const res = await fetch(url)
   console.log('-> Status code:', res.status)
@@ -158,7 +177,7 @@ async function testRetrieval({
     const pieceRetrievalUrl = await maybeGetResolvedProofSetRetrievalUrl({
       pdpVerifier,
       pandoraService,
-      proofSetIdHeaderValue,
+      proofSetId: proofSetIdHeaderValue,
     })
 
     console.error(
@@ -187,32 +206,29 @@ async function testRetrieval({
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
- * @param {string | null} args.proofSetIdHeaderValue
+ * @param {bigint | string | null} args.proofSetId
  * @returns {Promise<string | undefined>} The piece retrieval URL
  */
 async function maybeGetResolvedProofSetRetrievalUrl({
   pdpVerifier,
   pandoraService,
-  proofSetIdHeaderValue,
+  proofSetId,
 }) {
-  if (proofSetIdHeaderValue === null || proofSetIdHeaderValue === '') {
+  if (proofSetId === null || proofSetId === '') {
     return undefined
   }
 
-  let proofSetId
+  let proofSetIdValue
   try {
-    proofSetId = BigInt(proofSetIdHeaderValue)
+    proofSetIdValue =
+      typeof proofSetId === 'bigint' ? proofSetId : BigInt(proofSetId)
   } catch (err) {
-    console.warn(
-      'FilCDN reported invalid ProofSetID %j: %s',
-      proofSetIdHeaderValue,
-      err,
-    )
+    console.warn('FilCDN reported invalid ProofSetID %j: %s', proofSetId, err)
     return undefined
   }
 
   try {
-    const [proofSetOwner] = await pdpVerifier.getProofSetOwner(proofSetId)
+    const [proofSetOwner] = await pdpVerifier.getProofSetOwner(proofSetIdValue)
     const providerId =
       await pandoraService.getProviderIdByAddress(proofSetOwner)
     const providerInfo = await pandoraService.getApprovedProvider(providerId)
@@ -234,6 +250,7 @@ async function maybeGetResolvedProofSetRetrievalUrl({
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
  * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {boolean} [args.withCDN=true] Default is `true`
  */
 
 export async function sampleRetrieval({
@@ -242,14 +259,14 @@ export async function sampleRetrieval({
   botLocation = '<dev>',
   CDN_HOSTNAME,
   FROM_PROOFSET_ID,
+  withCDN = true,
 }) {
-  const { rootCid, setId, rootId, clientAddress } = await pickRandomFileWithCDN(
-    {
-      pdpVerifier,
-      pandoraService,
-      FROM_PROOFSET_ID,
-    },
-  )
+  const { rootCid, setId, rootId, clientAddress } = await pickRandomFile({
+    pdpVerifier,
+    pandoraService,
+    FROM_PROOFSET_ID,
+    withCDN,
+  })
 
   await testRetrieval({
     pdpVerifier,
@@ -260,6 +277,7 @@ export async function sampleRetrieval({
     rootCid,
     setId,
     rootId,
+    withCDN,
   })
 }
 
@@ -268,6 +286,8 @@ export async function sampleRetrieval({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {boolean | null} [args.withCDN=true] Filter for CDN datasets: true
+ *   (only CDN-enabled), false (only non-CDN), null (both). Default is `true`
  * @returns {Promise<{
  *   rootCid: string
  *   setId: BigInt
@@ -276,10 +296,11 @@ export async function sampleRetrieval({
  * }>}
  *   The CommP CID of the file.
  */
-async function pickRandomFileWithCDN({
+async function pickRandomFile({
   pdpVerifier,
   pandoraService,
   FROM_PROOFSET_ID,
+  withCDN = true,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
   /** @type {Map<BigInt, ProofSetInfo>} */
@@ -312,14 +333,17 @@ async function pickRandomFileWithCDN({
       cachedProofSetsInfo.get(setId) ??
       (await pandoraService.getProofSet(setId))
     cachedProofSetsInfo.set(setId, info)
-    const { withCDN, payer: clientAddress, payee: providerAddress } = info
+    const {
+      withCDN: proofSetWithCDN,
+      payer: clientAddress,
+      payee: providerAddress,
+    } = info
     // console.log('Proof Set info from Pandora Service', info)
 
-    if (!withCDN) {
+    if (withCDN !== proofSetWithCDN) {
       console.log(
-        'Proof set does not pay for CDN, restarting the sampling algorithm',
+        'Proof set CDN status does not match, restarting the sampling algorithm',
       )
-      continue
     }
 
     const providerIsApproved =
@@ -380,6 +404,7 @@ async function pickRandomFileWithCDN({
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
  * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {boolean} [args.withCDN=true] Default is `true`
  */
 
 export async function testLatestRetrievableRoot({
@@ -388,12 +413,14 @@ export async function testLatestRetrievableRoot({
   botLocation,
   CDN_HOSTNAME,
   FROM_PROOFSET_ID,
+  withCDN = true,
 }) {
   const { rootCid, proofSetId, rootId, clientAddress } =
-    await getMostRecentFileWithCDN({
+    await getMostRecentFile({
       pdpVerifier,
       pandoraService,
       FROM_PROOFSET_ID,
+      withCDN,
     })
 
   await testRetrieval({
@@ -405,6 +432,7 @@ export async function testLatestRetrievableRoot({
     rootCid,
     setId: proofSetId,
     rootId,
+    withCDN,
   })
 }
 
@@ -413,6 +441,8 @@ export async function testLatestRetrievableRoot({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {boolean | null} [args.withCDN=true] Filter for CDN datasets: true
+ *   (only CDN-enabled), false (only non-CDN), null (both). Default is `true`
  * @returns {Promise<{
  *   rootCid: string
  *   proofSetId: BigInt
@@ -421,10 +451,11 @@ export async function testLatestRetrievableRoot({
  * }>}
  *   The CommP CID of the file.
  */
-async function getMostRecentFileWithCDN({
+async function getMostRecentFile({
   pdpVerifier,
   pandoraService,
   FROM_PROOFSET_ID,
+  withCDN = true,
 }) {
   for (
     let proofSetId = (await pdpVerifier.getNextProofSetId()) - 1n;
@@ -440,10 +471,16 @@ async function getMostRecentFileWithCDN({
     }
 
     const info = await pandoraService.getProofSet(proofSetId)
-    const { withCDN, payer: clientAddress, payee: providerAddress } = info
+    const {
+      withCDN: proofSetWithCDN,
+      payer: clientAddress,
+      payee: providerAddress,
+    } = info
 
-    if (!withCDN) {
-      console.log('Proof set does not pay for CDN')
+    if (withCDN !== proofSetWithCDN) {
+      console.log(
+        `Proof set has withCDN: ${proofSetWithCDN} but we are looking for withCDN: ${withCDN}`,
+      )
       continue
     }
 
