@@ -1,21 +1,24 @@
 import { setTimeout } from 'node:timers/promises'
 import { ethers } from 'ethers'
 import {
-  pandoraServiceAbi,
+  filecoinWarmStorageServiceAbi,
+  serviceProviderRegistryAbi,
   pdpVerifierAbi,
   sampleRetrieval,
-  testLatestRetrievableRoot,
+  testLatestRetrievablePiece,
 } from '../index.js'
 
 const {
   FLY_REGION,
   GLIF_TOKEN,
   RPC_URL = 'https://api.calibration.node.glif.io/',
-  PDP_VERIFIER_ADDRESS = '0x5A23b7df87f59A291C26A2A1d684AD03Ce9B68DC',
-  PANDORA_SERVICE_ADDRESS = '0xf49ba5eaCdFD5EE3744efEdf413791935FE4D4c5',
+  PDP_VERIFIER_PROXY_ADDRESS = '0xf9f521c6e11A1680ead3eDD8a2757Ea731458617',
+  FILECOIN_WARM_STORAGE_SERVICE_PROXY_ADDRESS = '0xfa564144f183E4E7B8FEdCfbAa412afc83D5aE3d',
+  // TODO: replace with the actual address
+  SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS = '0x',
   CDN_HOSTNAME = 'calibration.filcdn.io',
   DELAY = 1_000,
-  FROM_PROOFSET_ID = 200,
+  FROM_DATASET_ID = 0,
 } = process.env
 
 const fetchRequest = new ethers.FetchRequest(RPC_URL)
@@ -28,12 +31,25 @@ const provider = new ethers.JsonRpcProvider(fetchRequest, undefined, {
 
 /** @type {import('../index.js').PdpVerifier} */
 const pdpVerifier = /** @type {any} */ (
-  new ethers.Contract(PDP_VERIFIER_ADDRESS, pdpVerifierAbi, provider)
+  new ethers.Contract(PDP_VERIFIER_PROXY_ADDRESS, pdpVerifierAbi, provider)
 )
 
-/** @type {import('../index.js').PandoraService} */
-const pandoraService = /** @type {any} */ (
-  new ethers.Contract(PANDORA_SERVICE_ADDRESS, pandoraServiceAbi, provider)
+/** @type {import('../index.js').FilecoinWarmStorageService} */
+const filecoinWarmStorageService = /** @type {any} */ (
+  new ethers.Contract(
+    FILECOIN_WARM_STORAGE_SERVICE_PROXY_ADDRESS,
+    filecoinWarmStorageServiceAbi,
+    provider,
+  )
+)
+
+/** @type {import('../index.js').ServiceProviderRegistry} */
+const serviceProviderRegistry = /** @type {any} */ (
+  new ethers.Contract(
+    SERVICE_PROVIDER_REGISTRY_PROXY_ADDRESS,
+    serviceProviderRegistryAbi,
+    provider,
+  )
 )
 
 await Promise.all([
@@ -41,10 +57,11 @@ await Promise.all([
     while (true) {
       await sampleRetrieval({
         pdpVerifier,
-        pandoraService,
+        filecoinWarmStorageService,
+        serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
-        FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+        FROM_DATASET_ID: BigInt(FROM_DATASET_ID),
       })
       console.log('\n')
       await setTimeout(Number(DELAY))
@@ -52,12 +69,13 @@ await Promise.all([
   })(),
   (async () => {
     while (true) {
-      await testLatestRetrievableRoot({
+      await testLatestRetrievablePiece({
         pdpVerifier,
-        pandoraService,
+        filecoinWarmStorageService,
+        serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
-        FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+        FROM_DATASET_ID: BigInt(FROM_DATASET_ID),
       })
       console.log('\n')
       await setTimeout(Number(30_000)) // block time

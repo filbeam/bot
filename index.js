@@ -1,12 +1,10 @@
+import { AbiCoder } from 'ethers'
 import { CID } from 'multiformats/cid'
 import assert from 'node:assert'
 
-// A list of (setId, rootCid) pairs to not retrieve because the SP is not serving retrievals
-const IGNORED_ROOTS = [
-  '212:baga6ea4seaqjlh5gvyf4v4nuwige3nynttmus2kxgr4s6c6rf2pjfkr5cu4rgci',
-  '339:baga6ea4seaqnx4gnoeuqjyu7ctmhqtow4nnzukdfuyw3wr5bm73o5vlvbl5mgny',
-  '442:baga6ea4seaqnbpfza3wl5fgu7gnfcyh5h6zufn4skwt6clylnzaw5k6maiwt6ay',
-]
+// A list of (dataSetId, pieceCid) pairs to not retrieve because the SP is not serving retrievals
+/** @type {string[]} */
+const IGNORED_PIECES = []
 
 // HTTP response status codes that are not actionable for us and we don't want to alert on them
 const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
@@ -15,66 +13,63 @@ const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
 ]
 
 export const pdpVerifierAbi = [
-  // Returns the next proof set ID
-  'function getNextProofSetId() public view returns (uint64)',
-  // Returns false if the proof set is 1) not yet created 2) deleted
-  'function proofSetLive(uint256 setId) public view returns (bool)',
-  // Returns false if the proof set is not live or if the root id is 1) not yet created 2) deleted
-  'function rootLive(uint256 setId, uint256 rootId) public view returns (bool)',
-  // Returns the next root ID for a proof set
-  'function getNextRootId(uint256 setId) public view returns (uint256)',
-  // Returns the root CID for a given proof set and root ID
-  'function getRootCid(uint256 setId, uint256 rootId) public view returns (tuple(bytes))',
-  // Returns the owner of a proof set and the proposed owner if any
-  'function getProofSetOwner(uint256 setId) public view returns (address, address)',
+  // Returns the next data set ID
+  'function getNextDataSetId() public view returns (uint64)',
+  // Returns false if the data set is 1) not yet created 2) deleted
+  'function dataSetLive(uint256 dataSetId) public view returns (bool)',
+  // Returns false if the data set is not live or if the piece id is 1) not yet created 2) deleted
+  'function pieceLive(uint256 dataSetId, uint256 pieceId) public view returns (bool)',
+  // Returns the next piece ID for a data set
+  'function getNextPieceId(uint256 dataSetId) public view returns (uint256)',
+  // Returns the piece CID for a given data set and piece ID
+  'function getPieceCid(uint256 dataSetId, uint256 pieceId) public view returns (tuple(bytes))',
+  // Returns the owner of a data set and the proposed owner if any
+  'function getDataSetOwner(uint256 dataSetId) public view returns (address, address)',
 ]
 
 /**
  * @typedef {{
- *   getNextProofSetId(): Promise<BigInt>
- *   proofSetLive(setId: BigInt): Promise<Boolean>
- *   rootLive(setId: BigInt, rootId: BigInt): Promise<Boolean>
- *   getNextRootId(setId: BigInt): Promise<BigInt>
- *   getRootCid(setId: BigInt, rootId: BigInt): Promise<[string]>
- *   getProofSetOwner(setId: BigInt): Promise<[string, string]>
+ *   getNextDataSetId(): Promise<BigInt>
+ *   dataSetLive(setId: BigInt): Promise<Boolean>
+ *   pieceLive(setId: BigInt, pieceId: BigInt): Promise<Boolean>
+ *   getNextPieceId(setId: BigInt): Promise<BigInt>
+ *   getPieceCid(setId: BigInt, pieceId: BigInt): Promise<[string]>
+ *   getDataSetOwner(setId: BigInt): Promise<[string, string]>
  *   isProviderApproved(provider: string): Promise<Boolean>
  * }} PdpVerifier
  */
 
-export const pandoraServiceAbi = [
-  'function getProofSetWithCDN(uint256 proofSetId) external view returns (bool)',
-  `function getProofSet(uint256 proofSetId) external view returns (tuple(
-    uint256 railId,
+export const filecoinWarmStorageServiceAbi = [
+  `function getDataSet(uint256 dataSetId) external view returns (tuple(
+    uint256 pdpRailId,
+    uint256 cacheMissRailId,
+    uint256 cdnRailId,
     address payer,
     address payee,
     uint256 commissionBps,
-    string metadata,
-    string[] rootMetadata,
     uint256 clientDataSetId,
-    bool withCDN,
+    uint256 paymentEndEpoch,
   ) memory)`,
-  'function isProviderApproved(address provider) external view returns (bool)',
-  'function getProviderIdByAddress(address provider) external view returns (uint256)',
-  `function getApprovedProvider(uint256 providerId) external view returns (tuple(
-    address owner,
-    string pdpUrl,
-    string pieceRetrievalUrl,
-    uint256 registeredAt,
-    uint256 approvedAt,
-  ) memory)`,
+  `function getDataSetMetadataAllKeys(uint256 dataSetId) external view returns (string[] memory keys, string[] memory values)`,
+]
+
+export const serviceProviderRegistryAbi = [
+  'function isProviderActive(uint256 providerId) external view returns (bool)',
+  'function getProviderByAddress(address provider) external view returns (uint256)',
+  'function getProduct(uint256 providerId, uint8 productType) external view returns (tuple(bytes productData, string[] capabilityKeys, bool isActive) memory)',
 ]
 
 /**
  * @typedef {{
- *   railId: BigInt
+ *   pdpRailId: BigInt
+ *   cacheMissRailId: BigInt
+ *   cdnRailId: BigInt
  *   payer: string
  *   payee: string
  *   commissionBps: BigInt
- *   metadata: string
- *   rootMetadata: string[]
  *   clientDataSetId: BigInt
- *   withCDN: boolean
- * }} ProofSetInfo
+ *   paymentEndEpoch: BigInt
+ * }} DataSetInfo
  */
 
 /**
@@ -89,41 +84,56 @@ export const pandoraServiceAbi = [
 
 /**
  * @typedef {{
- *   getProofSetWithCDN(setId: BigInt): Promise<boolean>
- *   getProofSet(setId: BigInt): Promise<ProofSetInfo>
- *   isProviderApproved(provider: string): Promise<boolean>
- *   getProviderIdByAddress(provider: string): Promise<BigInt>
- *   getApprovedProvider(providerId: BigInt): Promise<ApprovedProviderInfo>
- * }} PandoraService
+ *   getDataSet(dataSetId: BigInt): Promise<DataSetInfo>
+ *   getDataSetMetadataAllKeys(dataSetId: BigInt): Promise<{
+ *     keys: string[]
+ *     values: string[]
+ *   }>
+ * }} FilecoinWarmStorageService
+ */
+
+/**
+ * @typedef {{
+ *   isProviderActive(providerId: BigInt): Promise<BigInt>
+ *   getProviderByAddress(provider: string): Promise<BigInt>
+ *   getProduct(
+ *     providerId: BigInt,
+ *     productType: number,
+ *   ): Promise<{
+ *     productData: string
+ *     capabilityKeys: string[]
+ *     isActive: boolean
+ *   }>
+ * }} ServiceProviderRegistry
  */
 
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {PandoraService} args.pandoraService
+ * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} args.clientAddress
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
- * @param {string} args.rootCid
- * @param {BigInt} args.setId
- * @param {BigInt} args.rootId
+ * @param {string} args.pieceCid
+ * @param {BigInt} args.dataSetId
+ * @param {BigInt} args.pieceId
  * @param {boolean} [args.retryOn404=true] Default is `true`
  * @param {number} [args.retryDelayMs=10_000] Default is `10_000`
  * @returns {Promise<void>}
  */
 async function testRetrieval({
   pdpVerifier,
-  pandoraService,
+  serviceProviderRegistry,
   clientAddress,
   botLocation,
   CDN_HOSTNAME,
-  rootCid,
-  setId,
-  rootId,
+  pieceCid,
+  dataSetId,
+  pieceId,
   retryOn404 = true,
   retryDelayMs = 10_000,
 }) {
-  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${rootCid}`
+  const url = `https://${clientAddress}.${CDN_HOSTNAME}/${pieceCid}`
   console.log('Fetching', url)
   const res = await fetch(url)
   console.log('-> Status code:', res.status)
@@ -137,14 +147,14 @@ async function testRetrieval({
       )
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
       return testRetrieval({
+        serviceProviderRegistry,
         pdpVerifier,
-        pandoraService,
         clientAddress,
         botLocation,
         CDN_HOSTNAME,
-        rootCid,
-        setId,
-        rootId,
+        pieceCid,
+        dataSetId,
+        pieceId,
         retryOn404: false,
       })
     }
@@ -154,18 +164,18 @@ async function testRetrieval({
       return
     }
 
-    const proofSetIdHeaderValue = res.headers.get('x-proof-set-id')
-    const pieceRetrievalUrl = await maybeGetResolvedProofSetRetrievalUrl({
+    const dataSetIdHeaderValue = res.headers.get('x-data-set-id')
+    const pieceRetrievalUrl = await maybeGetResolvedDataSetRetrievalUrl({
       pdpVerifier,
-      pandoraService,
-      proofSetIdHeaderValue,
+      serviceProviderRegistry,
+      dataSetIdHeaderValue,
     })
 
     console.error(
-      'ALERT Cannot retrieve ProofSet %s Root %s (resolved as ProofSet %s from SP %s) from %s via %s: %s %s',
-      String(setId),
-      String(rootId),
-      proofSetIdHeaderValue ?? '<not reported>',
+      'ALERT Cannot retrieve DataSet %s Piece %s (resolved as DataSet %s from SP %s) from %s via %s: %s %s',
+      String(dataSetId),
+      String(pieceId),
+      dataSetIdHeaderValue ?? '<not reported>',
       pieceRetrievalUrl
         ? (URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl)
         : '<unknown>',
@@ -186,41 +196,61 @@ async function testRetrieval({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {PandoraService} args.pandoraService
- * @param {string | null} args.proofSetIdHeaderValue
+ * @param {ServiceProviderRegistry} args.serviceProviderRegistry
+ * @param {string | null} args.dataSetIdHeaderValue
  * @returns {Promise<string | undefined>} The piece retrieval URL
  */
-async function maybeGetResolvedProofSetRetrievalUrl({
+async function maybeGetResolvedDataSetRetrievalUrl({
   pdpVerifier,
-  pandoraService,
-  proofSetIdHeaderValue,
+  serviceProviderRegistry,
+  dataSetIdHeaderValue,
 }) {
-  if (proofSetIdHeaderValue === null || proofSetIdHeaderValue === '') {
+  if (dataSetIdHeaderValue === null || dataSetIdHeaderValue === '') {
     return undefined
   }
 
-  let proofSetId
+  let dataSetId
   try {
-    proofSetId = BigInt(proofSetIdHeaderValue)
+    dataSetId = BigInt(dataSetIdHeaderValue)
   } catch (err) {
     console.warn(
-      'FilCDN reported invalid ProofSetID %j: %s',
-      proofSetIdHeaderValue,
+      'FilCDN reported invalid DataSetID %j: %s',
+      dataSetIdHeaderValue,
       err,
     )
     return undefined
   }
 
   try {
-    const [proofSetOwner] = await pdpVerifier.getProofSetOwner(proofSetId)
+    const [dataSetOwner] = await pdpVerifier.getDataSetOwner(dataSetId)
     const providerId =
-      await pandoraService.getProviderIdByAddress(proofSetOwner)
-    const providerInfo = await pandoraService.getApprovedProvider(providerId)
-    return providerInfo.pieceRetrievalUrl
+      await serviceProviderRegistry.getProviderByAddress(dataSetOwner)
+    const { productData, isActive } = await serviceProviderRegistry.getProduct(
+      providerId,
+      0,
+    )
+
+    if (!isActive) {
+      console.warn(
+        'Provider %s for DataSetID %s is not active, skipping retrieval URL resolution',
+        dataSetId,
+        dataSetOwner,
+      )
+      return undefined
+    }
+
+    // Decodes the PDPOffering struct
+    const abiCoder = new AbiCoder()
+    const [url] = abiCoder.decode(
+      ['string', 'uint256', 'uint256', 'bool', 'bool', 'uint256'],
+      productData,
+    )
+
+    return url
   } catch (err) {
     console.warn(
-      'Failed to fetch owner & provider info for ProofSetID %s: %s',
-      proofSetId,
+      'Failed to fetch owner & provider info for DataSetID %s: %s',
+      dataSetId,
       err,
     )
     return undefined
@@ -230,261 +260,292 @@ async function maybeGetResolvedProofSetRetrievalUrl({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {PandoraService} args.pandoraService
+ * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
- * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {BigInt} args.FROM_DATASET_ID
  */
 
 export async function sampleRetrieval({
   pdpVerifier,
-  pandoraService,
+  filecoinWarmStorageService,
+  serviceProviderRegistry,
   botLocation = '<dev>',
   CDN_HOSTNAME,
-  FROM_PROOFSET_ID,
+  FROM_DATASET_ID,
 }) {
-  const { rootCid, setId, rootId, clientAddress } = await pickRandomFileWithCDN(
-    {
+  const { pieceCid, dataSetId, pieceId, clientAddress } =
+    await pickRandomFileWithCDN({
       pdpVerifier,
-      pandoraService,
-      FROM_PROOFSET_ID,
-    },
-  )
+      filecoinWarmStorageService,
+      serviceProviderRegistry,
+      FROM_DATASET_ID,
+    })
 
   await testRetrieval({
     pdpVerifier,
-    pandoraService,
+    serviceProviderRegistry,
     clientAddress,
     botLocation,
     CDN_HOSTNAME,
-    rootCid,
-    setId,
-    rootId,
+    pieceCid,
+    dataSetId,
+    pieceId,
   })
 }
 
 /**
  * @param {Object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {PandoraService} args.pandoraService
- * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {ServiceProviderRegistry} args.serviceProviderRegistry
+ * @param {BigInt} args.FROM_DATASET_ID
  * @returns {Promise<{
- *   rootCid: string
- *   setId: BigInt
- *   rootId: BigInt
+ *   pieceCid: string
+ *   dataSetId: BigInt
+ *   pieceId: BigInt
  *   clientAddress: string
  * }>}
  *   The CommP CID of the file.
  */
 async function pickRandomFileWithCDN({
   pdpVerifier,
-  pandoraService,
-  FROM_PROOFSET_ID,
+  filecoinWarmStorageService,
+  serviceProviderRegistry,
+  FROM_DATASET_ID,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
-  /** @type {Map<BigInt, ProofSetInfo>} */
-  const cachedProofSetsInfo = new Map()
+  /** @type {Map<BigInt, DataSetInfo>} */
+  const cachedDataSetsInfo = new Map()
 
-  const nextProofSetId = await pdpVerifier.getNextProofSetId()
-  console.log('Number of proof sets:', nextProofSetId)
+  const nextDataSetId = await pdpVerifier.getNextDataSetId()
+  console.log('Number of data sets:', nextDataSetId)
   assert(
-    FROM_PROOFSET_ID < nextProofSetId,
-    `FROM_PROOFSET_ID ${FROM_PROOFSET_ID} must be less than the number of existing proof sets ${nextProofSetId}`,
+    FROM_DATASET_ID < nextDataSetId,
+    `FROM_DATASET_ID ${FROM_DATASET_ID} must be less than the number of existing data sets ${nextDataSetId}`,
   )
 
   while (true) {
-    // Safety: this will break after the number of proofsets grow over MAX_SAFE_INTEGER (9e15)
+    // Safety: this will break after the number of datasets grow over MAX_SAFE_INTEGER (9e15)
     // We don't expect to keep running this bot for long enough to hit this limit
-    const setId =
-      FROM_PROOFSET_ID +
+    const dataSetId =
+      FROM_DATASET_ID +
       BigInt(
-        Math.floor(Math.random() * Number(nextProofSetId - FROM_PROOFSET_ID)),
+        Math.floor(Math.random() * Number(nextDataSetId - FROM_DATASET_ID)),
       )
-    console.log('Picked proof set id:', setId)
+    console.log('Picked data set id:', dataSetId)
 
-    const proofSetLive = await pdpVerifier.proofSetLive(setId)
-    if (!proofSetLive) {
-      console.log('Proof set is not live, restarting the sampling algorithm')
+    const dataSetLive = await pdpVerifier.dataSetLive(dataSetId)
+    if (!dataSetLive) {
+      console.log('data set is not live, restarting the sampling algorithm')
       continue
     }
 
-    const info =
-      cachedProofSetsInfo.get(setId) ??
-      (await pandoraService.getProofSet(setId))
-    cachedProofSetsInfo.set(setId, info)
-    const { withCDN, payer: clientAddress, payee: providerAddress } = info
-    // console.log('Proof Set info from Pandora Service', info)
+    const dataSet =
+      cachedDataSetsInfo.get(dataSetId) ??
+      (await filecoinWarmStorageService.getDataSet(dataSetId))
+    cachedDataSetsInfo.set(dataSetId, dataSet)
+    const { payer: clientAddress, payee: providerAddress } = dataSet
+    const { keys: datasetMetadataKeys, values: datasetMetadataValues } =
+      await filecoinWarmStorageService.getDataSetMetadataAllKeys(dataSetId)
+
+    let withCDN = false
+    for (let i = 0; i < datasetMetadataKeys.length; i++) {
+      if (datasetMetadataKeys[i] === 'withCDN') {
+        withCDN = datasetMetadataValues[i] === 'true'
+        break
+      }
+    }
 
     if (!withCDN) {
       console.log(
-        'Proof set does not pay for CDN, restarting the sampling algorithm',
+        'data set does not pay for CDN, restarting the sampling algorithm',
       )
       continue
     }
 
+    const providerId =
+      await serviceProviderRegistry.getProviderByAddress(providerAddress)
     const providerIsApproved =
-      await pandoraService.isProviderApproved(providerAddress)
+      await serviceProviderRegistry.isProviderActive(providerId)
     if (!providerIsApproved) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
     }
 
-    console.log('Proofset client:', clientAddress)
+    console.log('dataset client:', clientAddress)
 
-    const nextRootId = await pdpVerifier.getNextRootId(setId)
-    console.log('Number of roots:', nextRootId)
+    const nextPieceId = await pdpVerifier.getNextPieceId(dataSetId)
+    console.log('Number of pieces:', nextPieceId)
 
     // Pick the most recently uploaded file that wasn't deleted yet.
 
-    let rootId = nextRootId - 1n
-    let rootLive = false
-    let remainingAttempts = Math.min(5, Number(nextRootId))
-    while (remainingAttempts > 0 && rootId >= 0n) {
-      rootLive = await pdpVerifier.rootLive(setId, rootId)
-      if (rootLive) break
+    let pieceId = nextPieceId - 1n
+    let pieceLive = false
+    let remainingAttempts = Math.min(5, Number(nextPieceId))
+    while (remainingAttempts > 0 && pieceId >= 0n) {
+      pieceLive = await pdpVerifier.pieceLive(dataSetId, pieceId)
+      if (pieceLive) break
 
-      console.log('Root %s is not live, trying an older file', rootId)
+      console.log('Piece %s is not live, trying an older file', pieceId)
       remainingAttempts--
-      rootId--
+      pieceId--
     }
 
-    if (!rootLive) {
+    if (!pieceLive) {
       console.log('No more attempts left, restarting the sampling algorithm')
       continue
     }
 
-    console.log('Picked root id:', rootId)
+    console.log('Picked piece id:', pieceId)
 
-    const [rootCidRaw] = await pdpVerifier.getRootCid(setId, rootId)
-    console.log('Found CommP:', rootCidRaw)
-    const cidBytes = Buffer.from(rootCidRaw.slice(2), 'hex')
-    const rootCidObj = CID.decode(cidBytes)
-    console.log('Converted to CommP CID:', rootCidObj)
-    const rootCid = rootCidObj.toString()
+    const [pieceCidRaw] = await pdpVerifier.getPieceCid(dataSetId, pieceId)
+    console.log('Found CommP:', pieceCidRaw)
+    const cidBytes = Buffer.from(pieceCidRaw.slice(2), 'hex')
+    const pieceCidObj = CID.decode(cidBytes)
+    console.log('Converted to CommP CID:', pieceCidObj)
+    const pieceCid = pieceCidObj.toString()
 
-    if (IGNORED_ROOTS.includes(`${setId}:${rootCid}`)) {
+    if (IGNORED_PIECES.includes(`${dataSetId}:${pieceCid}`)) {
       console.log(
-        'We are ignoring this root, restarting the sampling algorithm',
+        'We are ignoring this piece, restarting the sampling algorithm',
       )
       continue
     }
 
-    return { rootCid, setId, rootId, clientAddress }
+    return { pieceCid, dataSetId, pieceId, clientAddress }
   }
 }
 
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {PandoraService} args.pandoraService
+ * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
- * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {BigInt} args.FROM_DATASET_ID
  */
 
-export async function testLatestRetrievableRoot({
+export async function testLatestRetrievablePiece({
   pdpVerifier,
-  pandoraService,
+  filecoinWarmStorageService,
+  serviceProviderRegistry,
   botLocation,
   CDN_HOSTNAME,
-  FROM_PROOFSET_ID,
+  FROM_DATASET_ID,
 }) {
-  const { rootCid, proofSetId, rootId, clientAddress } =
+  const { pieceCid, dataSetId, pieceId, clientAddress } =
     await getMostRecentFileWithCDN({
       pdpVerifier,
-      pandoraService,
-      FROM_PROOFSET_ID,
+      filecoinWarmStorageService,
+      serviceProviderRegistry,
+      FROM_DATASET_ID,
     })
 
   await testRetrieval({
     pdpVerifier,
-    pandoraService,
+    serviceProviderRegistry,
     clientAddress,
     botLocation,
     CDN_HOSTNAME,
-    rootCid,
-    setId: proofSetId,
-    rootId,
+    pieceCid,
+    dataSetId,
+    pieceId,
   })
 }
 
 /**
  * @param {Object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {PandoraService} args.pandoraService
- * @param {BigInt} args.FROM_PROOFSET_ID
+ * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {ServiceProviderRegistry} args.serviceProviderRegistry
+ * @param {BigInt} args.FROM_DATASET_ID
  * @returns {Promise<{
- *   rootCid: string
- *   proofSetId: BigInt
- *   rootId: BigInt
+ *   pieceCid: string
+ *   dataSetId: BigInt
+ *   pieceId: BigInt
  *   clientAddress: string
  * }>}
  *   The CommP CID of the file.
  */
 async function getMostRecentFileWithCDN({
   pdpVerifier,
-  pandoraService,
-  FROM_PROOFSET_ID,
+  filecoinWarmStorageService,
+  serviceProviderRegistry,
+  FROM_DATASET_ID,
 }) {
   for (
-    let proofSetId = (await pdpVerifier.getNextProofSetId()) - 1n;
-    proofSetId >= 0n && proofSetId >= FROM_PROOFSET_ID;
-    proofSetId--
+    let dataSetId = (await pdpVerifier.getNextDataSetId()) - 1n;
+    dataSetId >= 0n && dataSetId >= FROM_DATASET_ID;
+    dataSetId--
   ) {
-    console.log('Checking proof set ID:', proofSetId)
+    console.log('Checking data set ID:', dataSetId)
 
-    const proofSetLive = await pdpVerifier.proofSetLive(proofSetId)
-    if (!proofSetLive) {
-      console.log('Proof set is not live')
+    const dataSetLive = await pdpVerifier.dataSetLive(dataSetId)
+    if (!dataSetLive) {
+      console.log('data set is not live')
       continue
     }
 
-    const info = await pandoraService.getProofSet(proofSetId)
-    const { withCDN, payer: clientAddress, payee: providerAddress } = info
+    const { payer: clientAddress, payee: providerAddress } =
+      await filecoinWarmStorageService.getDataSet(dataSetId)
+    const { keys: datasetMetadataKeys, values: datasetMetadataValues } =
+      await filecoinWarmStorageService.getDataSetMetadataAllKeys(dataSetId)
+    let withCDN = false
+    for (let i = 0; i < datasetMetadataKeys.length; i++) {
+      if (datasetMetadataKeys[i] === 'withCDN') {
+        withCDN = datasetMetadataValues[i] === 'true'
+        break
+      }
+    }
 
     if (!withCDN) {
-      console.log('Proof set does not pay for CDN')
+      console.log('data set does not pay for CDN')
       continue
     }
 
-    const providerIsApproved =
-      await pandoraService.isProviderApproved(providerAddress)
-    if (!providerIsApproved) {
-      console.log('Provider is not approved')
+    const providerId =
+      await serviceProviderRegistry.getProviderByAddress(providerAddress)
+    const providerIsActive =
+      await serviceProviderRegistry.isProviderActive(providerId)
+    if (!providerIsActive) {
+      console.log('Provider is not active')
       continue
     }
 
-    console.log('Proofset client:', clientAddress)
+    console.log('dataset client:', clientAddress)
 
     // Pick the most recently uploaded file that wasn't deleted yet.
 
     for (
-      let rootId = (await pdpVerifier.getNextRootId(proofSetId)) - 1n;
-      rootId >= 0n;
-      rootId--
+      let pieceId = (await pdpVerifier.getNextPieceId(dataSetId)) - 1n;
+      pieceId >= 0n;
+      pieceId--
     ) {
-      console.log('Checking root ID:', rootId)
-      const rootIsLive = await pdpVerifier.rootLive(proofSetId, rootId)
-      if (!rootIsLive) {
-        console.log('Root is not live')
+      console.log('Checking piece ID:', pieceId)
+      const pieceIsLive = await pdpVerifier.pieceLive(dataSetId, pieceId)
+      if (!pieceIsLive) {
+        console.log('Piece is not live')
         continue
       }
 
-      const [rootCidRaw] = await pdpVerifier.getRootCid(proofSetId, rootId)
-      console.log('Found CommP:', rootCidRaw)
-      const cidBytes = Buffer.from(rootCidRaw.slice(2), 'hex')
-      const rootCidObj = CID.decode(cidBytes)
-      console.log('Converted to CommP CID:', rootCidObj)
-      const rootCid = rootCidObj.toString()
+      const [pieceCidRaw] = await pdpVerifier.getPieceCid(dataSetId, pieceId)
+      console.log('Found CommP:', pieceCidRaw)
+      const cidBytes = Buffer.from(pieceCidRaw.slice(2), 'hex')
+      const pieceCidObj = CID.decode(cidBytes)
+      console.log('Converted to CommP CID:', pieceCidObj)
+      const pieceCid = pieceCidObj.toString()
 
-      if (IGNORED_ROOTS.includes(`${proofSetId}:${rootCid}`)) {
-        console.log('We are ignoring this root')
+      if (IGNORED_PIECES.includes(`${dataSetId}:${pieceCid}`)) {
+        console.log('We are ignoring this piece')
         continue
       }
 
-      return { rootCid, proofSetId, rootId, clientAddress }
+      return { pieceCid, dataSetId, pieceId, clientAddress }
     }
   }
 
-  throw new Error('No suitable root found')
+  throw new Error('No suitable piece found')
 }
