@@ -286,8 +286,7 @@ export async function sampleRetrieval({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {BigInt} args.FROM_PROOFSET_ID
- * @param {boolean | null} [args.withCDN=true] Filter for CDN datasets: true
- *   (only CDN-enabled), false (only non-CDN), null (both). Default is `true`
+ * @param {boolean} [args.withCDN=true] Default is `true`
  * @returns {Promise<{
  *   rootCid: string
  *   setId: BigInt
@@ -441,8 +440,7 @@ export async function testLatestRetrievableRoot({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {PandoraService} args.pandoraService
  * @param {BigInt} args.FROM_PROOFSET_ID
- * @param {boolean | null} [args.withCDN=true] Filter for CDN datasets: true
- *   (only CDN-enabled), false (only non-CDN), null (both). Default is `true`
+ * @param {boolean} [args.withCDN=true] Default is `true`
  * @returns {Promise<{
  *   rootCid: string
  *   proofSetId: BigInt
