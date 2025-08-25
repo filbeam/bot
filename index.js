@@ -62,6 +62,13 @@ export const pandoraServiceAbi = [
     uint256 registeredAt,
     uint256 approvedAt,
   ) memory)`,
+  `function getAllApprovedProviders() external view returns (tuple(
+    address owner,
+    string pdpUrl,
+    string pieceRetrievalUrl,
+    uint256 registeredAt,
+    uint256 approvedAt,
+  )[] memory)`,
 ]
 
 /**
@@ -94,6 +101,7 @@ export const pandoraServiceAbi = [
  *   isProviderApproved(provider: string): Promise<boolean>
  *   getProviderIdByAddress(provider: string): Promise<BigInt>
  *   getApprovedProvider(providerId: BigInt): Promise<ApprovedProviderInfo>
+ *   getAllApprovedProviders(): Promise<ApprovedProviderInfo[]>
  * }} PandoraService
  */
 
