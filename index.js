@@ -1,4 +1,3 @@
-import { AbiCoder } from 'ethers'
 import { CID } from 'multiformats/cid'
 import assert from 'node:assert'
 
@@ -51,12 +50,13 @@ export const filecoinWarmStorageServiceAbi = [
     uint256 paymentEndEpoch,
   ) memory)`,
   `function getDataSetMetadataAllKeys(uint256 dataSetId) external view returns (string[] memory keys, string[] memory values)`,
+  `function approvedProviders(uint256 providerId) view returns (bool)`,
 ]
 
 export const serviceProviderRegistryAbi = [
-  'function isProviderActive(uint256 providerId) external view returns (bool)',
   'function getProviderByAddress(address provider) external view returns (uint256)',
-  'function getProduct(uint256 providerId, uint8 productType) external view returns (tuple(bytes productData, string[] capabilityKeys, bool isActive) memory)',
+  'function getPDPService(uint256 providerId) external view returns (tuple(tuple(string,uint256,uint256,bool,bool,uint256,uint256,string,address), string[] capabilityKeys, bool isActive) memory)',
+  'function addressToProviderId(address provider) view returns (uint256)',
 ]
 
 /**
@@ -89,18 +89,30 @@ export const serviceProviderRegistryAbi = [
  *     keys: string[]
  *     values: string[]
  *   }>
+ *   approvedProviders(providerId: BigInt): Promise<boolean>
  * }} FilecoinWarmStorageService
  */
 
 /**
  * @typedef {{
+ *   serviceURL: string
+ *   minPieceSizeInBytes: number
+ *   maxPieceSizeInBytes: number
+ *   ipniPiece: boolean
+ *   ipniIpfs: boolean
+ *   storagePricePerTibPerMonth: number
+ *   minProvingPeriodInEpochs: number
+ *   location: string
+ *   paymentTokenAddress: string
+ * }} PDPOffering
+ */
+
+/**
+ * @typedef {{
  *   isProviderActive(providerId: BigInt): Promise<BigInt>
- *   getProviderByAddress(provider: string): Promise<BigInt>
- *   getProduct(
- *     providerId: BigInt,
- *     productType: number,
- *   ): Promise<{
- *     productData: string
+ *   addressToProviderId(provider: string): Promise<BigInt>
+ *   getPDPService(providerId: BigInt): Promise<{
+ *     pdpOffering: PDPOffering
  *     capabilityKeys: string[]
  *     isActive: boolean
  *   }>
@@ -110,6 +122,7 @@ export const serviceProviderRegistryAbi = [
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
+ * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} args.clientAddress
  * @param {string} [args.botLocation] Fly region where the bot is running
@@ -123,6 +136,7 @@ export const serviceProviderRegistryAbi = [
  */
 async function testRetrieval({
   pdpVerifier,
+  filecoinWarmStorageService,
   serviceProviderRegistry,
   clientAddress,
   botLocation,
@@ -148,6 +162,7 @@ async function testRetrieval({
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
       return testRetrieval({
         serviceProviderRegistry,
+        filecoinWarmStorageService,
         pdpVerifier,
         clientAddress,
         botLocation,
@@ -167,6 +182,7 @@ async function testRetrieval({
     const dataSetIdHeaderValue = res.headers.get('x-data-set-id')
     const pieceRetrievalUrl = await maybeGetResolvedDataSetRetrievalUrl({
       pdpVerifier,
+      filecoinWarmStorageService,
       serviceProviderRegistry,
       dataSetIdHeaderValue,
     })
@@ -196,12 +212,14 @@ async function testRetrieval({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
+ * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string | null} args.dataSetIdHeaderValue
  * @returns {Promise<string | undefined>} The piece retrieval URL
  */
 async function maybeGetResolvedDataSetRetrievalUrl({
   pdpVerifier,
+  filecoinWarmStorageService,
   serviceProviderRegistry,
   dataSetIdHeaderValue,
 }) {
@@ -224,12 +242,21 @@ async function maybeGetResolvedDataSetRetrievalUrl({
   try {
     const [dataSetOwner] = await pdpVerifier.getDataSetOwner(dataSetId)
     const providerId =
-      await serviceProviderRegistry.getProviderByAddress(dataSetOwner)
-    const { productData, isActive } = await serviceProviderRegistry.getProduct(
-      providerId,
-      0,
-    )
+      await serviceProviderRegistry.addressToProviderId(dataSetOwner)
 
+    const isApproved =
+      await filecoinWarmStorageService.approvedProviders(providerId)
+    if (!isApproved) {
+      console.warn(
+        'Provider %s for DataSetID %s is not approved, skipping retrieval URL resolution',
+        dataSetId,
+        dataSetOwner,
+      )
+      return undefined
+    }
+
+    const { pdpOffering, isActive } =
+      await serviceProviderRegistry.getPDPService(providerId)
     if (!isActive) {
       console.warn(
         'Provider %s for DataSetID %s is not active, skipping retrieval URL resolution',
@@ -239,14 +266,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       return undefined
     }
 
-    // Decodes the PDPOffering struct
-    const abiCoder = new AbiCoder()
-    const [url] = abiCoder.decode(
-      ['string', 'uint256', 'uint256', 'bool', 'bool', 'uint256'],
-      productData,
-    )
-
-    return url
+    return pdpOffering.serviceURL
   } catch (err) {
     console.warn(
       'Failed to fetch owner & provider info for DataSetID %s: %s',
@@ -285,6 +305,7 @@ export async function sampleRetrieval({
 
   await testRetrieval({
     pdpVerifier,
+    filecoinWarmStorageService,
     serviceProviderRegistry,
     clientAddress,
     botLocation,
@@ -366,11 +387,19 @@ async function pickRandomFileWithCDN({
     }
 
     const providerId =
-      await serviceProviderRegistry.getProviderByAddress(providerAddress)
-    const providerIsApproved =
-      await serviceProviderRegistry.isProviderActive(providerId)
-    if (!providerIsApproved) {
+      await serviceProviderRegistry.addressToProviderId(providerAddress)
+
+    const isProviderApproved =
+      await filecoinWarmStorageService.approvedProviders(providerId)
+    if (!isProviderApproved) {
       console.log('Provider is not approved, restarting the sampling algorithm')
+      continue
+    }
+
+    const providerIsActive =
+      await serviceProviderRegistry.isProviderActive(providerId)
+    if (!providerIsActive) {
+      console.log('Provider is not active, restarting the sampling algorithm')
       continue
     }
 
@@ -446,6 +475,7 @@ export async function testLatestRetrievablePiece({
 
   await testRetrieval({
     pdpVerifier,
+    filecoinWarmStorageService,
     serviceProviderRegistry,
     clientAddress,
     botLocation,
@@ -507,11 +537,18 @@ async function getMostRecentFileWithCDN({
     }
 
     const providerId =
-      await serviceProviderRegistry.getProviderByAddress(providerAddress)
+      await serviceProviderRegistry.addressToProviderId(providerAddress)
+    const providerIsApproved =
+      await filecoinWarmStorageService.approvedProviders(providerId)
+    if (!providerIsApproved) {
+      console.log('Provider is not approved, restarting the sampling algorithm')
+      continue
+    }
+
     const providerIsActive =
       await serviceProviderRegistry.isProviderActive(providerId)
     if (!providerIsActive) {
-      console.log('Provider is not active')
+      console.log('Provider is not active, restarting the sampling algorithm')
       continue
     }
 
