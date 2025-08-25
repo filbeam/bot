@@ -8,6 +8,12 @@ const IGNORED_ROOTS = [
   '442:baga6ea4seaqnbpfza3wl5fgu7gnfcyh5h6zufn4skwt6clylnzaw5k6maiwt6ay',
 ]
 
+// HTTP response status codes that are not actionable for us and we don't want to alert on them
+const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
+  // Error 521 occurs when the origin web server refuses connections from Cloudflare.
+  521,
+]
+
 export const pdpVerifierAbi = [
   // Returns the next proof set ID
   'function getNextProofSetId() public view returns (uint64)',
@@ -149,6 +155,11 @@ async function testRetrieval({
         rootId,
         retryOn404: false,
       })
+    }
+
+    if (NO_ALERT_ON_RESPONSE_STATUS_CODES.includes(res.status)) {
+      console.log('This error is not actionable for us, suppressing the alert.')
+      return
     }
 
     const proofSetIdHeaderValue = res.headers.get('x-proof-set-id')
