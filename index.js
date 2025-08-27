@@ -49,7 +49,7 @@ export const filecoinWarmStorageServiceAbi = [
     uint256 clientDataSetId,
     uint256 paymentEndEpoch,
   ) memory)`,
-  `function getDataSetMetadataAllKeys(uint256 dataSetId) external view returns (string[] memory keys, string[] memory values)`,
+  `function getDataSetMetadata(uint256 dataSetId, string memory key) external view returns (bool exists, string memory value)`,
   `function approvedProviders(uint256 providerId) view returns (bool)`,
 ]
 
@@ -85,9 +85,12 @@ export const serviceProviderRegistryAbi = [
 /**
  * @typedef {{
  *   getDataSet(dataSetId: BigInt): Promise<DataSetInfo>
- *   getDataSetMetadataAllKeys(dataSetId: BigInt): Promise<{
- *     keys: string[]
- *     values: string[]
+ *   getDataSetMetadata(
+ *     dataSetId: BigInt,
+ *     key: string,
+ *   ): Promise<{
+ *     exists: boolean
+ *     value: string
  *   }>
  *   approvedProviders(providerId: BigInt): Promise<boolean>
  * }} FilecoinWarmStorageService
@@ -368,16 +371,9 @@ async function pickRandomFileWithCDN({
       (await filecoinWarmStorageService.getDataSet(dataSetId))
     cachedDataSetsInfo.set(dataSetId, dataSet)
     const { payer: clientAddress, payee: providerAddress } = dataSet
-    const { keys: datasetMetadataKeys, values: datasetMetadataValues } =
-      await filecoinWarmStorageService.getDataSetMetadataAllKeys(dataSetId)
-
-    let withCDN = false
-    for (let i = 0; i < datasetMetadataKeys.length; i++) {
-      if (datasetMetadataKeys[i] === 'withCDN') {
-        withCDN = datasetMetadataValues[i] === 'true'
-        break
-      }
-    }
+    const { exists: withCDNMetadaKeyExists, value: withCDNMetadataValue } =
+      await filecoinWarmStorageService.getDataSetMetadata(dataSetId, 'withCDN')
+    const withCDN = withCDNMetadaKeyExists && withCDNMetadataValue === 'true'
 
     if (!withCDN) {
       console.log(
@@ -521,15 +517,9 @@ async function getMostRecentFileWithCDN({
 
     const { payer: clientAddress, payee: providerAddress } =
       await filecoinWarmStorageService.getDataSet(dataSetId)
-    const { keys: datasetMetadataKeys, values: datasetMetadataValues } =
-      await filecoinWarmStorageService.getDataSetMetadataAllKeys(dataSetId)
-    let withCDN = false
-    for (let i = 0; i < datasetMetadataKeys.length; i++) {
-      if (datasetMetadataKeys[i] === 'withCDN') {
-        withCDN = datasetMetadataValues[i] === 'true'
-        break
-      }
-    }
+    const { exists: withCDNMetadaKeyExists, value: withCDNMetadataValue } =
+      await filecoinWarmStorageService.getDataSetMetadata(dataSetId, 'withCDN')
+    const withCDN = withCDNMetadaKeyExists && withCDNMetadataValue === 'true'
 
     if (!withCDN) {
       console.log('data set does not pay for CDN')
