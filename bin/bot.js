@@ -18,7 +18,7 @@ const {
   SERVICE_PROVIDER_REGISTRY_ADDRESS = '0x',
   CDN_HOSTNAME = 'calibration.filcdn.io',
   DELAY = 1_000,
-  FROM_DATASET_ID = 0,
+  FROM_DATA_SET_ID = 0,
 } = process.env
 
 const fetchRequest = new ethers.FetchRequest(RPC_URL)
@@ -61,7 +61,7 @@ await Promise.all([
         serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
-        FROM_DATASET_ID: BigInt(FROM_DATASET_ID),
+        FROM_DATA_SET_ID: BigInt(FROM_DATA_SET_ID),
       })
       console.log('\n')
       await setTimeout(Number(DELAY))
@@ -75,7 +75,7 @@ await Promise.all([
         serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
-        FROM_DATASET_ID: BigInt(FROM_DATASET_ID),
+        FROM_DATA_SET_ID: BigInt(FROM_DATA_SET_ID),
       })
       console.log('\n')
       await setTimeout(Number(30_000)) // block time
