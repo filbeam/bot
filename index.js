@@ -287,7 +287,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
- * @param {BigInt} args.FROM_DATASET_ID
+ * @param {BigInt} args.FROM_DATA_SET_ID
  */
 
 export async function sampleRetrieval({
@@ -296,14 +296,14 @@ export async function sampleRetrieval({
   serviceProviderRegistry,
   botLocation = '<dev>',
   CDN_HOSTNAME,
-  FROM_DATASET_ID,
+  FROM_DATA_SET_ID,
 }) {
   const { pieceCid, dataSetId, pieceId, clientAddress } =
     await pickRandomFileWithCDN({
       pdpVerifier,
       filecoinWarmStorageService,
       serviceProviderRegistry,
-      FROM_DATASET_ID,
+      FROM_DATA_SET_ID,
     })
 
   await testRetrieval({
@@ -324,7 +324,7 @@ export async function sampleRetrieval({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
- * @param {BigInt} args.FROM_DATASET_ID
+ * @param {BigInt} args.FROM_DATA_SET_ID
  * @returns {Promise<{
  *   pieceCid: string
  *   dataSetId: BigInt
@@ -337,7 +337,7 @@ async function pickRandomFileWithCDN({
   pdpVerifier,
   filecoinWarmStorageService,
   serviceProviderRegistry,
-  FROM_DATASET_ID,
+  FROM_DATA_SET_ID,
 }) {
   // Cache state query responses to speed up the sampling algorithm.
   /** @type {Map<BigInt, DataSetInfo>} */
@@ -346,17 +346,17 @@ async function pickRandomFileWithCDN({
   const nextDataSetId = await pdpVerifier.getNextDataSetId()
   console.log('Number of data sets:', nextDataSetId)
   assert(
-    FROM_DATASET_ID < nextDataSetId,
-    `FROM_DATASET_ID ${FROM_DATASET_ID} must be less than the number of existing data sets ${nextDataSetId}`,
+    FROM_DATA_SET_ID < nextDataSetId,
+    `FROM_DATA_SET_ID ${FROM_DATA_SET_ID} must be less than the number of existing data sets ${nextDataSetId}`,
   )
 
   while (true) {
     // Safety: this will break after the number of datasets grow over MAX_SAFE_INTEGER (9e15)
     // We don't expect to keep running this bot for long enough to hit this limit
     const dataSetId =
-      FROM_DATASET_ID +
+      FROM_DATA_SET_ID +
       BigInt(
-        Math.floor(Math.random() * Number(nextDataSetId - FROM_DATASET_ID)),
+        Math.floor(Math.random() * Number(nextDataSetId - FROM_DATA_SET_ID)),
       )
     console.log('Picked data set id:', dataSetId)
 
@@ -450,7 +450,7 @@ async function pickRandomFileWithCDN({
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
- * @param {BigInt} args.FROM_DATASET_ID
+ * @param {BigInt} args.FROM_DATA_SET_ID
  */
 
 export async function testLatestRetrievablePiece({
@@ -459,14 +459,14 @@ export async function testLatestRetrievablePiece({
   serviceProviderRegistry,
   botLocation,
   CDN_HOSTNAME,
-  FROM_DATASET_ID,
+  FROM_DATA_SET_ID,
 }) {
   const { pieceCid, dataSetId, pieceId, clientAddress } =
     await getMostRecentFileWithCDN({
       pdpVerifier,
       filecoinWarmStorageService,
       serviceProviderRegistry,
-      FROM_DATASET_ID,
+      FROM_DATA_SET_ID,
     })
 
   await testRetrieval({
@@ -487,7 +487,7 @@ export async function testLatestRetrievablePiece({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
- * @param {BigInt} args.FROM_DATASET_ID
+ * @param {BigInt} args.FROM_DATA_SET_ID
  * @returns {Promise<{
  *   pieceCid: string
  *   dataSetId: BigInt
@@ -500,11 +500,11 @@ async function getMostRecentFileWithCDN({
   pdpVerifier,
   filecoinWarmStorageService,
   serviceProviderRegistry,
-  FROM_DATASET_ID,
+  FROM_DATA_SET_ID,
 }) {
   for (
     let dataSetId = (await pdpVerifier.getNextDataSetId()) - 1n;
-    dataSetId >= 0n && dataSetId >= FROM_DATASET_ID;
+    dataSetId >= 0n && dataSetId >= FROM_DATA_SET_ID;
     dataSetId--
   ) {
     console.log('Checking data set ID:', dataSetId)
