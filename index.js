@@ -38,7 +38,7 @@ export const pdpVerifierAbi = [
  * }} PdpVerifier
  */
 
-export const filecoinWarmStorageServiceAbi = [
+export const filecoinWarmStorageServiceStateViewStateViewAbi = [
   `function getDataSet(uint256 dataSetId) external view returns (tuple(
     uint256 pdpRailId,
     uint256 cacheMissRailId,
@@ -50,13 +50,13 @@ export const filecoinWarmStorageServiceAbi = [
     uint256 paymentEndEpoch,
   ) memory)`,
   `function getDataSetMetadata(uint256 dataSetId, string memory key) external view returns (bool exists, string memory value)`,
-  `function approvedProviders(uint256 providerId) view returns (bool)`,
+  `function isProviderApproved(address provider) external view returns (bool)`,
 ]
 
 export const serviceProviderRegistryAbi = [
   'function getProviderByAddress(address provider) external view returns (uint256)',
   'function getPDPService(uint256 providerId) external view returns (tuple(tuple(string,uint256,uint256,bool,bool,uint256,uint256,string,address), string[] capabilityKeys, bool isActive) memory)',
-  'function addressToProviderId(address provider) view returns (uint256)',
+  'function getProviderIdByAddress(address provider) external view returns (uint256)',
 ]
 
 /**
@@ -92,8 +92,8 @@ export const serviceProviderRegistryAbi = [
  *     exists: boolean
  *     value: string
  *   }>
- *   approvedProviders(providerId: BigInt): Promise<boolean>
- * }} FilecoinWarmStorageService
+ *   isProviderApproved(providerId: BigInt): Promise<boolean>
+ * }} FilecoinWarmStorageServiceStateView
  */
 
 /**
@@ -113,7 +113,7 @@ export const serviceProviderRegistryAbi = [
 /**
  * @typedef {{
  *   isProviderActive(providerId: BigInt): Promise<BigInt>
- *   addressToProviderId(provider: string): Promise<BigInt>
+ *   getProviderIdByAddress(provider: string): Promise<BigInt>
  *   getPDPService(providerId: BigInt): Promise<{
  *     pdpOffering: PDPOffering
  *     capabilityKeys: string[]
@@ -125,7 +125,7 @@ export const serviceProviderRegistryAbi = [
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} args.clientAddress
  * @param {string} [args.botLocation] Fly region where the bot is running
@@ -139,7 +139,7 @@ export const serviceProviderRegistryAbi = [
  */
 async function testRetrieval({
   pdpVerifier,
-  filecoinWarmStorageService,
+  filecoinWarmStorageServiceStateView,
   serviceProviderRegistry,
   clientAddress,
   botLocation,
@@ -165,7 +165,7 @@ async function testRetrieval({
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
       return testRetrieval({
         serviceProviderRegistry,
-        filecoinWarmStorageService,
+        filecoinWarmStorageServiceStateView,
         pdpVerifier,
         clientAddress,
         botLocation,
@@ -185,7 +185,7 @@ async function testRetrieval({
     const dataSetIdHeaderValue = res.headers.get('x-data-set-id')
     const pieceRetrievalUrl = await maybeGetResolvedDataSetRetrievalUrl({
       pdpVerifier,
-      filecoinWarmStorageService,
+      filecoinWarmStorageServiceStateView,
       serviceProviderRegistry,
       dataSetIdHeaderValue,
     })
@@ -215,14 +215,14 @@ async function testRetrieval({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string | null} args.dataSetIdHeaderValue
  * @returns {Promise<string | undefined>} The piece retrieval URL
  */
 async function maybeGetResolvedDataSetRetrievalUrl({
   pdpVerifier,
-  filecoinWarmStorageService,
+  filecoinWarmStorageServiceStateView,
   serviceProviderRegistry,
   dataSetIdHeaderValue,
 }) {
@@ -245,11 +245,11 @@ async function maybeGetResolvedDataSetRetrievalUrl({
   try {
     const [dataSetOwner] = await pdpVerifier.getDataSetOwner(dataSetId)
     const providerId =
-      await serviceProviderRegistry.addressToProviderId(dataSetOwner)
+      await serviceProviderRegistry.getProviderIdByAddress(dataSetOwner)
 
-    const isApproved =
-      await filecoinWarmStorageService.approvedProviders(providerId)
-    if (!isApproved) {
+    const isApprovedProvider =
+      await filecoinWarmStorageServiceStateView.isProviderApproved(providerId)
+    if (!isApprovedProvider) {
       console.warn(
         'Provider %s for DataSetID %s is not approved, skipping retrieval URL resolution',
         dataSetId,
@@ -283,7 +283,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
@@ -292,7 +292,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
 
 export async function sampleRetrieval({
   pdpVerifier,
-  filecoinWarmStorageService,
+  filecoinWarmStorageServiceStateView,
   serviceProviderRegistry,
   botLocation = '<dev>',
   CDN_HOSTNAME,
@@ -301,14 +301,14 @@ export async function sampleRetrieval({
   const { pieceCid, dataSetId, pieceId, clientAddress } =
     await pickRandomFileWithCDN({
       pdpVerifier,
-      filecoinWarmStorageService,
+      filecoinWarmStorageServiceStateView,
       serviceProviderRegistry,
       FROM_DATASET_ID,
     })
 
   await testRetrieval({
     pdpVerifier,
-    filecoinWarmStorageService,
+    filecoinWarmStorageServiceStateView,
     serviceProviderRegistry,
     clientAddress,
     botLocation,
@@ -322,7 +322,7 @@ export async function sampleRetrieval({
 /**
  * @param {Object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {BigInt} args.FROM_DATASET_ID
  * @returns {Promise<{
@@ -335,7 +335,7 @@ export async function sampleRetrieval({
  */
 async function pickRandomFileWithCDN({
   pdpVerifier,
-  filecoinWarmStorageService,
+  filecoinWarmStorageServiceStateView,
   serviceProviderRegistry,
   FROM_DATASET_ID,
 }) {
@@ -368,11 +368,14 @@ async function pickRandomFileWithCDN({
 
     const dataSet =
       cachedDataSetsInfo.get(dataSetId) ??
-      (await filecoinWarmStorageService.getDataSet(dataSetId))
+      (await filecoinWarmStorageServiceStateView.getDataSet(dataSetId))
     cachedDataSetsInfo.set(dataSetId, dataSet)
     const { payer: clientAddress, payee: providerAddress } = dataSet
     const { exists: withCDNMetadaKeyExists, value: withCDNMetadataValue } =
-      await filecoinWarmStorageService.getDataSetMetadata(dataSetId, 'withCDN')
+      await filecoinWarmStorageServiceStateView.getDataSetMetadata(
+        dataSetId,
+        'withCDN',
+      )
     const withCDN = withCDNMetadaKeyExists && withCDNMetadataValue === 'true'
 
     if (!withCDN) {
@@ -383,11 +386,11 @@ async function pickRandomFileWithCDN({
     }
 
     const providerId =
-      await serviceProviderRegistry.addressToProviderId(providerAddress)
+      await serviceProviderRegistry.getProviderIdByAddress(providerAddress)
 
-    const isProviderApproved =
-      await filecoinWarmStorageService.approvedProviders(providerId)
-    if (!isProviderApproved) {
+    const isApprovedProvider =
+      await filecoinWarmStorageServiceStateView.isProviderApproved(providerId)
+    if (!isApprovedProvider) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
     }
@@ -446,7 +449,7 @@ async function pickRandomFileWithCDN({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
@@ -455,7 +458,7 @@ async function pickRandomFileWithCDN({
 
 export async function testLatestRetrievablePiece({
   pdpVerifier,
-  filecoinWarmStorageService,
+  filecoinWarmStorageServiceStateView,
   serviceProviderRegistry,
   botLocation,
   CDN_HOSTNAME,
@@ -464,14 +467,14 @@ export async function testLatestRetrievablePiece({
   const { pieceCid, dataSetId, pieceId, clientAddress } =
     await getMostRecentFileWithCDN({
       pdpVerifier,
-      filecoinWarmStorageService,
+      filecoinWarmStorageServiceStateView,
       serviceProviderRegistry,
       FROM_DATASET_ID,
     })
 
   await testRetrieval({
     pdpVerifier,
-    filecoinWarmStorageService,
+    filecoinWarmStorageServiceStateView,
     serviceProviderRegistry,
     clientAddress,
     botLocation,
@@ -485,7 +488,7 @@ export async function testLatestRetrievablePiece({
 /**
  * @param {Object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageService} args.filecoinWarmStorageService
+ * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {BigInt} args.FROM_DATASET_ID
  * @returns {Promise<{
@@ -498,7 +501,7 @@ export async function testLatestRetrievablePiece({
  */
 async function getMostRecentFileWithCDN({
   pdpVerifier,
-  filecoinWarmStorageService,
+  filecoinWarmStorageServiceStateView,
   serviceProviderRegistry,
   FROM_DATASET_ID,
 }) {
@@ -516,9 +519,12 @@ async function getMostRecentFileWithCDN({
     }
 
     const { payer: clientAddress, payee: providerAddress } =
-      await filecoinWarmStorageService.getDataSet(dataSetId)
+      await filecoinWarmStorageServiceStateView.getDataSet(dataSetId)
     const { exists: withCDNMetadaKeyExists, value: withCDNMetadataValue } =
-      await filecoinWarmStorageService.getDataSetMetadata(dataSetId, 'withCDN')
+      await filecoinWarmStorageServiceStateView.getDataSetMetadata(
+        dataSetId,
+        'withCDN',
+      )
     const withCDN = withCDNMetadaKeyExists && withCDNMetadataValue === 'true'
 
     if (!withCDN) {
@@ -527,10 +533,10 @@ async function getMostRecentFileWithCDN({
     }
 
     const providerId =
-      await serviceProviderRegistry.addressToProviderId(providerAddress)
-    const providerIsApproved =
-      await filecoinWarmStorageService.approvedProviders(providerId)
-    if (!providerIsApproved) {
+      await serviceProviderRegistry.getProviderIdByAddress(providerAddress)
+    const isApprovedProvider =
+      await filecoinWarmStorageServiceStateView.isProviderApproved(providerId)
+    if (!isApprovedProvider) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
     }
