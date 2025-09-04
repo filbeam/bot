@@ -12,10 +12,9 @@ const {
   FLY_REGION,
   GLIF_TOKEN,
   RPC_URL = 'https://api.calibration.node.glif.io/',
-  PDP_VERIFIER_PROXY_ADDRESS = '0xf9f521c6e11A1680ead3eDD8a2757Ea731458617',
-  // TODO: replace with the actual address
-  FILECOIN_WARM_STORAGE_SERVICE_STATE_VIEW_ADDRESS = '0x',
-  SERVICE_PROVIDER_REGISTRY_ADDRESS = '0x',
+  PDP_VERIFIER_ADDRESS = '0x445238Eca6c6aB8Dff1Aa6087d9c05734D22f137',
+  FILECOIN_WARM_STORAGE_SERVICE_STATE_VIEW_ADDRESS = '0x87EDE87cEF4BfeFE0374c3470cB3F5be18b739d5',
+  SERVICE_PROVIDER_REGISTRY_ADDRESS = '0xA8a7e2130C27e4f39D1aEBb3D538D5937bCf8ddb',
   CDN_HOSTNAME = 'calibration.filcdn.io',
   DELAY = 1_000,
   FROM_DATA_SET_ID = 0,
@@ -31,7 +30,7 @@ const provider = new ethers.JsonRpcProvider(fetchRequest, undefined, {
 
 /** @type {import('../index.js').PdpVerifier} */
 const pdpVerifier = /** @type {any} */ (
-  new ethers.Contract(PDP_VERIFIER_PROXY_ADDRESS, pdpVerifierAbi, provider)
+  new ethers.Contract(PDP_VERIFIER_ADDRESS, pdpVerifierAbi, provider)
 )
 
 /** @type {import('../index.js').FilecoinWarmStorageServiceStateView} */

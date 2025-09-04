@@ -50,13 +50,13 @@ export const filecoinWarmStorageServiceStateViewStateViewAbi = [
     uint256 paymentEndEpoch,
   ) memory)`,
   `function getDataSetMetadata(uint256 dataSetId, string memory key) external view returns (bool exists, string memory value)`,
-  `function isProviderApproved(address provider) external view returns (bool)`,
+  'function isProviderApproved(uint256 providerId) external view returns (bool)'
 ]
 
 export const serviceProviderRegistryAbi = [
-  'function getProviderByAddress(address provider) external view returns (uint256)',
   'function getPDPService(uint256 providerId) external view returns (tuple(tuple(string,uint256,uint256,bool,bool,uint256,uint256,string,address), string[] capabilityKeys, bool isActive) memory)',
   'function getProviderIdByAddress(address provider) external view returns (uint256)',
+  'function isProviderActive(uint256 providerId) external view returns (bool)',
 ]
 
 /**
@@ -371,12 +371,11 @@ async function pickRandomFileWithCDN({
       (await filecoinWarmStorageServiceStateView.getDataSet(dataSetId))
     cachedDataSetsInfo.set(dataSetId, dataSet)
     const { payer: clientAddress, payee: providerAddress } = dataSet
-    const { exists: withCDNMetadaKeyExists, value: withCDNMetadataValue } =
+    const { exists: withCDN } =
       await filecoinWarmStorageServiceStateView.getDataSetMetadata(
         dataSetId,
         'withCDN',
       )
-    const withCDN = withCDNMetadaKeyExists && withCDNMetadataValue === 'true'
 
     if (!withCDN) {
       console.log(
@@ -520,12 +519,13 @@ async function getMostRecentFileWithCDN({
 
     const { payer: clientAddress, payee: providerAddress } =
       await filecoinWarmStorageServiceStateView.getDataSet(dataSetId)
-    const { exists: withCDNMetadaKeyExists, value: withCDNMetadataValue } =
+    
+    // If `withCDN` metadata key is present it means the data set pays for CDN
+    const { exists: withCDN } =
       await filecoinWarmStorageServiceStateView.getDataSetMetadata(
         dataSetId,
         'withCDN',
       )
-    const withCDN = withCDNMetadaKeyExists && withCDNMetadataValue === 'true'
 
     if (!withCDN) {
       console.log('data set does not pay for CDN')
