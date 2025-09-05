@@ -38,7 +38,7 @@ export const pdpVerifierAbi = [
  * }} PdpVerifier
  */
 
-export const filecoinWarmStorageServiceStateViewStateViewAbi = [
+export const fwssStateViewAbi = [
   `function getDataSet(uint256 dataSetId) external view returns (tuple(
     uint256 pdpRailId,
     uint256 cacheMissRailId,
@@ -125,7 +125,7 @@ export const serviceProviderRegistryAbi = [
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
+ * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} args.clientAddress
  * @param {string} [args.botLocation] Fly region where the bot is running
@@ -139,7 +139,7 @@ export const serviceProviderRegistryAbi = [
  */
 async function testRetrieval({
   pdpVerifier,
-  filecoinWarmStorageServiceStateView,
+  fwssStateView,
   serviceProviderRegistry,
   clientAddress,
   botLocation,
@@ -165,7 +165,7 @@ async function testRetrieval({
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
       return testRetrieval({
         serviceProviderRegistry,
-        filecoinWarmStorageServiceStateView,
+        fwssStateView,
         pdpVerifier,
         clientAddress,
         botLocation,
@@ -185,7 +185,7 @@ async function testRetrieval({
     const dataSetIdHeaderValue = res.headers.get('x-data-set-id')
     const pieceRetrievalUrl = await maybeGetResolvedDataSetRetrievalUrl({
       pdpVerifier,
-      filecoinWarmStorageServiceStateView,
+      fwssStateView,
       serviceProviderRegistry,
       dataSetIdHeaderValue,
     })
@@ -215,14 +215,14 @@ async function testRetrieval({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
+ * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string | null} args.dataSetIdHeaderValue
  * @returns {Promise<string | undefined>} The piece retrieval URL
  */
 async function maybeGetResolvedDataSetRetrievalUrl({
   pdpVerifier,
-  filecoinWarmStorageServiceStateView,
+  fwssStateView,
   serviceProviderRegistry,
   dataSetIdHeaderValue,
 }) {
@@ -248,7 +248,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       await serviceProviderRegistry.getProviderIdByAddress(dataSetOwner)
 
     const isApprovedProvider =
-      await filecoinWarmStorageServiceStateView.isProviderApproved(providerId)
+      await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
       console.warn(
         'Provider %s for DataSetID %s is not approved, skipping retrieval URL resolution',
@@ -283,7 +283,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
+ * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
@@ -292,7 +292,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
 
 export async function sampleRetrieval({
   pdpVerifier,
-  filecoinWarmStorageServiceStateView,
+  fwssStateView,
   serviceProviderRegistry,
   botLocation = '<dev>',
   CDN_HOSTNAME,
@@ -301,14 +301,14 @@ export async function sampleRetrieval({
   const { pieceCid, dataSetId, pieceId, clientAddress } =
     await pickRandomFileWithCDN({
       pdpVerifier,
-      filecoinWarmStorageServiceStateView,
+      fwssStateView,
       serviceProviderRegistry,
       FROM_DATA_SET_ID,
     })
 
   await testRetrieval({
     pdpVerifier,
-    filecoinWarmStorageServiceStateView,
+    fwssStateView,
     serviceProviderRegistry,
     clientAddress,
     botLocation,
@@ -322,7 +322,7 @@ export async function sampleRetrieval({
 /**
  * @param {Object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
+ * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {BigInt} args.FROM_DATA_SET_ID
  * @returns {Promise<{
@@ -335,7 +335,7 @@ export async function sampleRetrieval({
  */
 async function pickRandomFileWithCDN({
   pdpVerifier,
-  filecoinWarmStorageServiceStateView,
+  fwssStateView,
   serviceProviderRegistry,
   FROM_DATA_SET_ID,
 }) {
@@ -368,11 +368,11 @@ async function pickRandomFileWithCDN({
 
     const dataSet =
       cachedDataSetsInfo.get(dataSetId) ??
-      (await filecoinWarmStorageServiceStateView.getDataSet(dataSetId))
+      (await fwssStateView.getDataSet(dataSetId))
     cachedDataSetsInfo.set(dataSetId, dataSet)
     const { payer: clientAddress, payee: providerAddress } = dataSet
     const { exists: withCDN } =
-      await filecoinWarmStorageServiceStateView.getDataSetMetadata(
+      await fwssStateView.getDataSetMetadata(
         dataSetId,
         'withCDN',
       )
@@ -388,7 +388,7 @@ async function pickRandomFileWithCDN({
       await serviceProviderRegistry.getProviderIdByAddress(providerAddress)
 
     const isApprovedProvider =
-      await filecoinWarmStorageServiceStateView.isProviderApproved(providerId)
+      await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue
@@ -448,7 +448,7 @@ async function pickRandomFileWithCDN({
 /**
  * @param {object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
+ * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
@@ -457,7 +457,7 @@ async function pickRandomFileWithCDN({
 
 export async function testLatestRetrievablePiece({
   pdpVerifier,
-  filecoinWarmStorageServiceStateView,
+  fwssStateView,
   serviceProviderRegistry,
   botLocation,
   CDN_HOSTNAME,
@@ -466,14 +466,14 @@ export async function testLatestRetrievablePiece({
   const { pieceCid, dataSetId, pieceId, clientAddress } =
     await getMostRecentFileWithCDN({
       pdpVerifier,
-      filecoinWarmStorageServiceStateView,
+      fwssStateView,
       serviceProviderRegistry,
       FROM_DATA_SET_ID,
     })
 
   await testRetrieval({
     pdpVerifier,
-    filecoinWarmStorageServiceStateView,
+    fwssStateView,
     serviceProviderRegistry,
     clientAddress,
     botLocation,
@@ -487,7 +487,7 @@ export async function testLatestRetrievablePiece({
 /**
  * @param {Object} args
  * @param {PdpVerifier} args.pdpVerifier
- * @param {FilecoinWarmStorageServiceStateView} args.filecoinWarmStorageServiceStateView
+ * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {BigInt} args.FROM_DATA_SET_ID
  * @returns {Promise<{
@@ -500,7 +500,7 @@ export async function testLatestRetrievablePiece({
  */
 async function getMostRecentFileWithCDN({
   pdpVerifier,
-  filecoinWarmStorageServiceStateView,
+  fwssStateView,
   serviceProviderRegistry,
   FROM_DATA_SET_ID,
 }) {
@@ -518,11 +518,11 @@ async function getMostRecentFileWithCDN({
     }
 
     const { payer: clientAddress, payee: providerAddress } =
-      await filecoinWarmStorageServiceStateView.getDataSet(dataSetId)
+      await fwssStateView.getDataSet(dataSetId)
     
     // If `withCDN` metadata key is present it means the data set pays for CDN
     const { exists: withCDN } =
-      await filecoinWarmStorageServiceStateView.getDataSetMetadata(
+      await fwssStateView.getDataSetMetadata(
         dataSetId,
         'withCDN',
       )
@@ -535,7 +535,7 @@ async function getMostRecentFileWithCDN({
     const providerId =
       await serviceProviderRegistry.getProviderIdByAddress(providerAddress)
     const isApprovedProvider =
-      await filecoinWarmStorageServiceStateView.isProviderApproved(providerId)
+      await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
       console.log('Provider is not approved, restarting the sampling algorithm')
       continue

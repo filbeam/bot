@@ -1,7 +1,7 @@
 import { setTimeout } from 'node:timers/promises'
 import { ethers } from 'ethers'
 import {
-  filecoinWarmStorageServiceStateViewStateViewAbi,
+  fwssStateViewAbi,
   serviceProviderRegistryAbi,
   pdpVerifierAbi,
   sampleRetrieval,
@@ -13,7 +13,7 @@ const {
   GLIF_TOKEN,
   RPC_URL = 'https://api.calibration.node.glif.io/',
   PDP_VERIFIER_ADDRESS = '0x445238Eca6c6aB8Dff1Aa6087d9c05734D22f137',
-  FILECOIN_WARM_STORAGE_SERVICE_STATE_VIEW_ADDRESS = '0x87EDE87cEF4BfeFE0374c3470cB3F5be18b739d5',
+  FWSS_STATE_VIEW_ADDRESS = '0x87EDE87cEF4BfeFE0374c3470cB3F5be18b739d5',
   SERVICE_PROVIDER_REGISTRY_ADDRESS = '0xA8a7e2130C27e4f39D1aEBb3D538D5937bCf8ddb',
   CDN_HOSTNAME = 'calibration.filcdn.io',
   DELAY = 1_000,
@@ -34,10 +34,10 @@ const pdpVerifier = /** @type {any} */ (
 )
 
 /** @type {import('../index.js').FilecoinWarmStorageServiceStateView} */
-const filecoinWarmStorageServiceStateView = /** @type {any} */ (
+const fwssStateView = /** @type {any} */ (
   new ethers.Contract(
-    FILECOIN_WARM_STORAGE_SERVICE_STATE_VIEW_ADDRESS,
-    filecoinWarmStorageServiceStateViewStateViewAbi,
+    FWSS_STATE_VIEW_ADDRESS,
+    fwssStateViewAbi,
     provider,
   )
 )
@@ -56,7 +56,7 @@ await Promise.all([
     while (true) {
       await sampleRetrieval({
         pdpVerifier,
-        filecoinWarmStorageServiceStateView,
+        fwssStateView,
         serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
@@ -70,7 +70,7 @@ await Promise.all([
     while (true) {
       await testLatestRetrievablePiece({
         pdpVerifier,
-        filecoinWarmStorageServiceStateView,
+        fwssStateView,
         serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
