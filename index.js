@@ -50,7 +50,7 @@ export const fwssStateViewAbi = [
     uint256 paymentEndEpoch,
   ) memory)`,
   `function getDataSetMetadata(uint256 dataSetId, string memory key) external view returns (bool exists, string memory value)`,
-  'function isProviderApproved(uint256 providerId) external view returns (bool)'
+  'function isProviderApproved(uint256 providerId) external view returns (bool)',
 ]
 
 export const serviceProviderRegistryAbi = [
@@ -371,11 +371,10 @@ async function pickRandomFileWithCDN({
       (await fwssStateView.getDataSet(dataSetId))
     cachedDataSetsInfo.set(dataSetId, dataSet)
     const { payer: clientAddress, payee: providerAddress } = dataSet
-    const { exists: withCDN } =
-      await fwssStateView.getDataSetMetadata(
-        dataSetId,
-        'withCDN',
-      )
+    const { exists: withCDN } = await fwssStateView.getDataSetMetadata(
+      dataSetId,
+      'withCDN',
+    )
 
     if (!withCDN) {
       console.log(
@@ -519,13 +518,12 @@ async function getMostRecentFileWithCDN({
 
     const { payer: clientAddress, payee: providerAddress } =
       await fwssStateView.getDataSet(dataSetId)
-    
+
     // If `withCDN` metadata key is present it means the data set pays for CDN
-    const { exists: withCDN } =
-      await fwssStateView.getDataSetMetadata(
-        dataSetId,
-        'withCDN',
-      )
+    const { exists: withCDN } = await fwssStateView.getDataSetMetadata(
+      dataSetId,
+      'withCDN',
+    )
 
     if (!withCDN) {
       console.log('data set does not pay for CDN')

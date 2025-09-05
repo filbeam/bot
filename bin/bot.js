@@ -35,11 +35,7 @@ const pdpVerifier = /** @type {any} */ (
 
 /** @type {import('../index.js').FilecoinWarmStorageServiceStateView} */
 const fwssStateView = /** @type {any} */ (
-  new ethers.Contract(
-    FWSS_STATE_VIEW_ADDRESS,
-    fwssStateViewAbi,
-    provider,
-  )
+  new ethers.Contract(FWSS_STATE_VIEW_ADDRESS, fwssStateViewAbi, provider)
 )
 
 /** @type {import('../index.js').ServiceProviderRegistry} */
