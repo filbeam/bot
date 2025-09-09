@@ -251,7 +251,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
       console.warn(
-        'Provider %s for DataSetID %s is not approved, skipping retrieval URL resolution',
+        'Provider %s for data set ID %s is not approved, skipping retrieval URL resolution',
         dataSetId,
         dataSetOwner,
       )
