@@ -251,9 +251,10 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
       console.warn(
-        'Provider %s for data set ID %s is not approved, skipping retrieval URL resolution',
-        dataSetId,
+        'Provider %s (%s) for data set ID %s is not approved, skipping retrieval URL resolution',
+        providerId,
         dataSetOwner,
+        dataSetId,
       )
       return undefined
     }
@@ -262,9 +263,10 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       await serviceProviderRegistry.getPDPService(providerId)
     if (!isActive) {
       console.warn(
-        'Provider %s for DataSetID %s is not active, skipping retrieval URL resolution',
-        dataSetId,
+        'Provider %s (%s) for data set ID %s is not active, skipping retrieval URL resolution',
+        providerId,
         dataSetOwner,
+        dataSetId,
       )
       return undefined
     }
@@ -389,7 +391,12 @@ async function pickRandomFileWithCDN({
     const isApprovedProvider =
       await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
-      console.log('Provider is not approved, restarting the sampling algorithm')
+      console.log(
+        'Provider %s (%s) for data set ID %s is not approved, restarting the sampling algorithm',
+        providerId,
+        providerAddress,
+        dataSetId,
+      )
       continue
     }
 
@@ -535,7 +542,12 @@ async function getMostRecentFileWithCDN({
     const isApprovedProvider =
       await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
-      console.log('Provider is not approved, restarting the sampling algorithm')
+      console.log(
+        'Provider %s (%s) for data set ID %s is not approved, restarting the sampling algorithm',
+        providerId,
+        providerAddress,
+        dataSetId,
+      )
       continue
     }
 
