@@ -191,7 +191,7 @@ async function testRetrieval({
     })
 
     console.error(
-      'ALERT Cannot retrieve DataSet %s Piece %s (resolved as DataSet %s from SP %s) from %s via %s: %s %s',
+      'ALERT Cannot retrieve data set %s piece %s (resolved as data set %s from SP %s) from %s via %s: %s %s',
       String(dataSetId),
       String(pieceId),
       dataSetIdHeaderValue ?? '<not reported>',
