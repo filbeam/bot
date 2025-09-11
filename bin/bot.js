@@ -1,21 +1,23 @@
 import { setTimeout } from 'node:timers/promises'
 import { ethers } from 'ethers'
 import {
-  pandoraServiceAbi,
+  fwssStateViewAbi,
+  serviceProviderRegistryAbi,
   pdpVerifierAbi,
   sampleRetrieval,
-  testLatestRetrievableRoot,
+  testLatestRetrievablePiece,
 } from '../index.js'
 
 const {
   FLY_REGION,
   GLIF_TOKEN,
   RPC_URL = 'https://api.calibration.node.glif.io/',
-  PDP_VERIFIER_ADDRESS = '0x5A23b7df87f59A291C26A2A1d684AD03Ce9B68DC',
-  PANDORA_SERVICE_ADDRESS = '0xf49ba5eaCdFD5EE3744efEdf413791935FE4D4c5',
+  PDP_VERIFIER_ADDRESS = '0x445238Eca6c6aB8Dff1Aa6087d9c05734D22f137',
+  FWSS_STATE_VIEW_ADDRESS = '0x87EDE87cEF4BfeFE0374c3470cB3F5be18b739d5',
+  SERVICE_PROVIDER_REGISTRY_ADDRESS = '0xA8a7e2130C27e4f39D1aEBb3D538D5937bCf8ddb',
   CDN_HOSTNAME = 'calibration.filcdn.io',
   DELAY = 1_000,
-  FROM_PROOFSET_ID = 200,
+  FROM_DATA_SET_ID = 0,
 } = process.env
 
 const fetchRequest = new ethers.FetchRequest(RPC_URL)
@@ -31,9 +33,18 @@ const pdpVerifier = /** @type {any} */ (
   new ethers.Contract(PDP_VERIFIER_ADDRESS, pdpVerifierAbi, provider)
 )
 
-/** @type {import('../index.js').PandoraService} */
-const pandoraService = /** @type {any} */ (
-  new ethers.Contract(PANDORA_SERVICE_ADDRESS, pandoraServiceAbi, provider)
+/** @type {import('../index.js').FilecoinWarmStorageServiceStateView} */
+const fwssStateView = /** @type {any} */ (
+  new ethers.Contract(FWSS_STATE_VIEW_ADDRESS, fwssStateViewAbi, provider)
+)
+
+/** @type {import('../index.js').ServiceProviderRegistry} */
+const serviceProviderRegistry = /** @type {any} */ (
+  new ethers.Contract(
+    SERVICE_PROVIDER_REGISTRY_ADDRESS,
+    serviceProviderRegistryAbi,
+    provider,
+  )
 )
 
 await Promise.all([
@@ -41,10 +52,11 @@ await Promise.all([
     while (true) {
       await sampleRetrieval({
         pdpVerifier,
-        pandoraService,
+        fwssStateView,
+        serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
-        FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+        FROM_DATA_SET_ID: BigInt(FROM_DATA_SET_ID),
         withCDN: true,
       })
       console.log('\n')
@@ -53,12 +65,13 @@ await Promise.all([
   })(),
   (async () => {
     while (true) {
-      await testLatestRetrievableRoot({
+      await testLatestRetrievablePiece({
         pdpVerifier,
-        pandoraService,
+        fwssStateView,
+        serviceProviderRegistry,
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
-        FROM_PROOFSET_ID: BigInt(FROM_PROOFSET_ID),
+        FROM_DATA_SET_ID: BigInt(FROM_DATA_SET_ID),
         withCDN: true,
       })
       console.log('\n')
