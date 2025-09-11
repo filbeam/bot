@@ -16,16 +16,17 @@ jobs:
       - run: npm ci
       - run: npm test
 
-  deploy:
+  deploy-calibration:
     if: github.ref == 'refs/heads/main'
     needs: [test]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only
+      - run: flyctl deploy --remote-only -c fly.calibration.toml
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          # FIXME: create filcdn-bot-calibration app on Fly.io and set the secret
+          FLY_API_TOKEN: ${{ secrets.FLY_TOKEN_CALIBRATION }}
       - if: failure()
         uses: slackapi/slack-github-action@v2.1.0
         with:
@@ -34,7 +35,38 @@ jobs:
           payload: |
             {
               "channel": "alerts",
-              "text": "Deployment of `${{ github.event.repository.name }}` failed",
+              "text": "Deployment of `${{ github.event.repository.name }}` (calibration) failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":warning: *<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Deployment of `${{ github.event.repository.name }}` failed>*"
+                  }
+                }
+              ]
+            }
+
+  deploy-mainnet:
+    if: github.ref == 'refs/heads/main'
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only -c fly.mainnet.toml
+        env:
+          # FIXME: create filcdn-bot-mainnet app on Fly.io and set the secret
+          FLY_API_TOKEN: ${{ secrets.FLY_TOKEN_MAINNET }}
+      - if: failure()
+        uses: slackapi/slack-github-action@v2.1.0
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_BOT_TOKEN }}
+          payload: |
+            {
+              "channel": "alerts",
+              "text": "Deployment of `${{ github.event.repository.name }}` (production) failed",
               "blocks": [
                 {
                   "type": "section",

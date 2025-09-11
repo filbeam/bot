@@ -1,0 +1,24 @@
+# fly.toml app configuration file generated for filcdn-indexer on 2025-05-29T10:47:10+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'filcdn-bot-mainnet'
+primary_region = 'fra'
+
+[env]
+  RPC_URL = 'https://api.node.glif.io/',
+  # FIXME
+  PDP_VERIFIER_ADDRESS = '0x445238Eca6c6aB8Dff1Aa6087d9c05734D22f137',
+  # FIXME
+  FWSS_STATE_VIEW_ADDRESS = '0x87EDE87cEF4BfeFE0374c3470cB3F5be18b739d5',
+  # FIXME
+  SERVICE_PROVIDER_REGISTRY_ADDRESS = '0xA8a7e2130C27e4f39D1aEBb3D538D5937bCf8ddb',
+  CDN_HOSTNAME = 'filcdn.io',
+  DELAY = 30_000
+  FROM_DATA_SET_ID = 0,
+
+[build]
+
+[[vm]]
+  size = 'shared-cpu-1x'
