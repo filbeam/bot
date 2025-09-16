@@ -21,7 +21,7 @@ jobs:
     needs: [test]
     strategy:
       matrix:
-        network: ['mainnet', 'calibration']
+        network: [calibration, mainnet]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
