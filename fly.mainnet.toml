@@ -8,7 +8,6 @@ primary_region = 'fra'
 
 [env]
   DELAY = 30_000
-  GLIF_TOKEN = 'TODO'
   RPC_URL = 'https://api.node.glif.io/'
   PDP_VERIFIER_ADDRESS = '0x1790d465d1FABE85b530B116f385091d52a12a3b'
   FWSS_STATE_VIEW_ADDRESS = '0x1f4B10FFf972Cd429e4007ac2c77fC9e2315ca2f'
