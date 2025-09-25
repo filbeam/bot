@@ -235,7 +235,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
     dataSetId = BigInt(dataSetIdHeaderValue)
   } catch (err) {
     console.warn(
-      'FilCDN reported invalid DataSetID %j: %s',
+      'FilBeam reported invalid DataSetID %j: %s',
       dataSetIdHeaderValue,
       err,
     )
