@@ -1,3 +1,3 @@
 # bot
 
-A bot creating synthetic retrieval traffic for FilCDN
+A bot creating synthetic retrieval traffic for FilBeam
