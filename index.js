@@ -11,6 +11,37 @@ const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
   521,
 ]
 
+/**
+ * Simple function to report TTFB metrics to Cloudflare Analytics
+ * @param {object} metrics
+ * @param {string} metrics.url
+ * @param {string} metrics.botLocation
+ * @param {string} metrics.clientAddress
+ * @param {string} metrics.pieceCid
+ * @param {number} metrics.ttfb
+ * @param {number} metrics.statusCode
+ * @param {number} metrics.bytes
+ */
+async function reportToCloudflare(metrics) {
+  if (!process.env.CLOUDFLARE_ANALYTICS_URL) {
+    throw new Error('CLOUDFLARE_ANALYTICS_URL environment variable is not set')
+  }
+  const response = await fetch(process.env.CLOUDFLARE_ANALYTICS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      blobs: [metrics.url, metrics.botLocation, metrics.clientAddress, metrics.pieceCid],
+      doubles: [metrics.ttfb, metrics.statusCode, metrics.bytes]
+    })
+  })
+  
+  if (response.ok) {
+    console.log('☁️ Sent to Cloudflare Analytics')
+  } else {
+    throw new Error(`HTTP ${response.status}`)
+  }
+}
+
 export const pdpVerifierAbi = [
   // Returns the next data set ID
   'function getNextDataSetId() public view returns (uint64)',
@@ -152,8 +183,13 @@ async function testRetrieval({
 }) {
   const url = `https://${clientAddress}.${CDN_HOSTNAME}/${pieceCid}`
   console.log('Fetching', url)
+  
+  // Measure TTFB (Time To First Byte)
+  const startTime = performance.now()
   const res = await fetch(url)
-  console.log('-> Status code:', res.status)
+  const ttfb = performance.now() - startTime
+  
+  console.log('-> Status code:', res.status, `TTFB: ${ttfb.toFixed(2)}ms`)
   if (!res.ok) {
     const reason = (await res.text()).trim()
     console.log(reason)
@@ -204,10 +240,33 @@ async function testRetrieval({
       reason,
     )
   } else if (res.body) {
+    const downloadStartTime = performance.now()
+    let totalBytes = 0
+    
     const reader = res.body.getReader()
     while (true) {
-      const { done } = await reader.read()
+      const { done, value } = await reader.read()
       if (done) break
+      if (value) totalBytes += value.length
+    }
+    
+    const downloadTime = performance.now() - downloadStartTime
+    const totalTime = performance.now() - startTime
+    
+    console.log(`✅ Successfully retrieved ${totalBytes} bytes in ${totalTime.toFixed(2)}ms total (download: ${downloadTime.toFixed(2)}ms)`)
+    console.log(`📊 TTFB: ${ttfb.toFixed(2)}ms, Status: ${res.status}, Bytes: ${totalBytes}, URL: ${url}`)
+    
+    // Optionally report to Cloudflare Analytics
+    if (process.env.CLOUDFLARE_ANALYTICS_URL) {
+      reportToCloudflare({
+        url,
+        ttfb: Math.round(ttfb),
+        statusCode: res.status,
+        bytes: totalBytes,
+        botLocation: botLocation || '<dev>',
+        clientAddress,
+        pieceCid
+      }).catch(err => console.warn('Analytics reporting failed:', err.message))
     }
   }
 }
