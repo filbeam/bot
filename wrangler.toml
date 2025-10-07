@@ -1,0 +1,7 @@
+name = "filbeam-analytics-worker"
+main = "analytics-worker.js"
+compatibility_date = "2024-01-01"
+
+[[analytics_engine_datasets]]
+dataset = "ttfb_metrics"
+binding = "analytics-engine"
