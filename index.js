@@ -152,7 +152,22 @@ async function testRetrieval({
 }) {
   const url = `https://${clientAddress}.${CDN_HOSTNAME}/${pieceCid}`
   console.log('Fetching', url)
-  const res = await fetch(url)
+
+  let res
+  try {
+    res = await fetch(url)
+  } catch (err) {
+    console.error(
+      'ALERT Cannot retrieve data set %s piece %sfrom %s via %s: %s',
+      String(dataSetId),
+      String(pieceId),
+      botLocation ?? '<dev>',
+      url,
+      err,
+    )
+    return
+  }
+
   console.log('-> Status code:', res.status)
   if (!res.ok) {
     const reason = (await res.text()).trim()
