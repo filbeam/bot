@@ -135,6 +135,7 @@ export const serviceProviderRegistryAbi = [
  * @param {BigInt} args.pieceId
  * @param {boolean} [args.retryOn404=true] Default is `true`
  * @param {number} [args.retryDelayMs=10_000] Default is `10_000`
+ * @param {string} [args.AUTH_TOKEN]
  * @returns {Promise<void>}
  */
 async function testRetrieval({
@@ -149,13 +150,20 @@ async function testRetrieval({
   pieceId,
   retryOn404 = true,
   retryDelayMs = 10_000,
+  AUTH_TOKEN,
 }) {
   const url = `https://${clientAddress}.${CDN_HOSTNAME}/${pieceCid}`
   console.log('Fetching', url)
 
   let res
   try {
-    res = await fetch(url)
+    /** @type {Record<string, string>} */
+    const headers = {}
+    if (AUTH_TOKEN) {
+      headers['authorization'] = `Bearer ${AUTH_TOKEN}`
+    }
+
+    res = await fetch(url, { headers })
   } catch (err) {
     console.error(
       'ALERT Cannot retrieve data set %s piece %sfrom %s via %s: %s',
@@ -188,6 +196,7 @@ async function testRetrieval({
         pieceCid,
         dataSetId,
         pieceId,
+        AUTH_TOKEN,
         retryOn404: false,
       })
     }
@@ -305,6 +314,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
  * @param {BigInt} args.FROM_DATA_SET_ID
+ * @param {string} [args.AUTH_TOKEN]
  */
 
 export async function sampleRetrieval({
@@ -314,6 +324,7 @@ export async function sampleRetrieval({
   botLocation = '<dev>',
   CDN_HOSTNAME,
   FROM_DATA_SET_ID,
+  AUTH_TOKEN,
 }) {
   const { pieceCid, dataSetId, pieceId, clientAddress } =
     await pickRandomFileWithCDN({
@@ -333,6 +344,7 @@ export async function sampleRetrieval({
     pieceCid,
     dataSetId,
     pieceId,
+    AUTH_TOKEN,
   })
 }
 

@@ -18,6 +18,7 @@ const {
   CDN_HOSTNAME = 'calibration.filbeam.io',
   DELAY = 1_000,
   FROM_DATA_SET_ID = 0,
+  AUTH_TOKEN,
 } = process.env
 
 const fetchRequest = new ethers.FetchRequest(RPC_URL)
@@ -57,6 +58,7 @@ await Promise.all([
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
         FROM_DATA_SET_ID: BigInt(FROM_DATA_SET_ID),
+        AUTH_TOKEN,
       })
       console.log('\n')
       await setTimeout(Number(DELAY))
@@ -71,6 +73,7 @@ await Promise.all([
         botLocation: FLY_REGION,
         CDN_HOSTNAME,
         FROM_DATA_SET_ID: BigInt(FROM_DATA_SET_ID),
+        AUTH_TOKEN,
       })
       console.log('\n')
       await setTimeout(Number(30_000)) // block time
