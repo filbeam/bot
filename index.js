@@ -158,9 +158,9 @@ async function testRetrieval({
   let res
   try {
     /** @type {Record<string, string>} */
-    const headers = {}
+    const headers = new Headers()
     if (AUTH_TOKEN) {
-      headers['authorization'] = `Bearer ${AUTH_TOKEN}`
+      headers.set('authorization', `Bearer ${AUTH_TOKEN}`)
     }
 
     res = await fetch(url, { headers })
