@@ -157,7 +157,6 @@ async function testRetrieval({
 
   let res
   try {
-    /** @type {Record<string, string>} */
     const headers = new Headers()
     if (AUTH_TOKEN) {
       headers.set('authorization', `Bearer ${AUTH_TOKEN}`)
@@ -486,6 +485,7 @@ async function pickRandomFileWithCDN({
  * @param {string} [args.botLocation] Fly region where the bot is running
  * @param {string} args.CDN_HOSTNAME
  * @param {BigInt} args.FROM_DATA_SET_ID
+ * @param {string} [args.AUTH_TOKEN]
  */
 
 export async function testLatestRetrievablePiece({
