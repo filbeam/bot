@@ -22,8 +22,8 @@ export const pdpVerifierAbi = [
   'function getNextPieceId(uint256 dataSetId) public view returns (uint256)',
   // Returns the piece CID for a given data set and piece ID
   'function getPieceCid(uint256 dataSetId, uint256 pieceId) public view returns (tuple(bytes))',
-  // Returns the owner of a data set and the proposed owner if any
-  'function getDataSetOwner(uint256 dataSetId) public view returns (address, address)',
+  // Returns the storage provider of a data set and the proposed storage provider if any
+  'function getDataSetStorageProvider(uint256 dataSetId) public view returns (address, address)',
 ]
 
 /**
@@ -33,7 +33,7 @@ export const pdpVerifierAbi = [
  *   pieceLive(setId: BigInt, pieceId: BigInt): Promise<Boolean>
  *   getNextPieceId(setId: BigInt): Promise<BigInt>
  *   getPieceCid(setId: BigInt, pieceId: BigInt): Promise<[string]>
- *   getDataSetOwner(setId: BigInt): Promise<[string, string]>
+ *   getDataSetStorageProvider(setId: BigInt): Promise<[string, string]>
  *   isProviderApproved(provider: string): Promise<Boolean>
  * }} PdpVerifier
  */
@@ -266,9 +266,9 @@ async function maybeGetResolvedDataSetRetrievalUrl({
   }
 
   try {
-    const [dataSetOwner] = await pdpVerifier.getDataSetOwner(dataSetId)
+    const [dataSetStorageProvider] = await pdpVerifier.getDataSetStorageProvider(dataSetId)
     const providerId =
-      await serviceProviderRegistry.getProviderIdByAddress(dataSetOwner)
+      await serviceProviderRegistry.getProviderIdByAddress(dataSetStorageProvider)
 
     const isApprovedProvider =
       await fwssStateView.isProviderApproved(providerId)
@@ -276,7 +276,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       console.warn(
         'Provider %s (%s) for data set ID %s is not approved, skipping retrieval URL resolution',
         providerId,
-        dataSetOwner,
+        dataSetStorageProvider,
         dataSetId,
       )
       return undefined
@@ -288,7 +288,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       console.warn(
         'Provider %s (%s) for data set ID %s is not active, skipping retrieval URL resolution',
         providerId,
-        dataSetOwner,
+        dataSetStorageProvider,
         dataSetId,
       )
       return undefined
