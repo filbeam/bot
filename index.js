@@ -287,8 +287,15 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       return undefined
     }
 
-    // TODO: Validation
     const serviceURLIndex = capabilityKeys.indexOf('serviceURL')
+    if (serviceURLIndex === -1) {
+      console.warn(
+        'Service URL not found in capabilityKeys %s for data set ID %s',
+        capabilityKeys.join(','),
+        dataSetId,
+      )
+    }
+
     return Buffer.from(capabilityValues[serviceURLIndex]).toString()
   } catch (err) {
     console.warn(
