@@ -272,10 +272,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
     }
 
     const { isActive, capabilityKeys, capabilityValues } =
-      await serviceProviderRegistry.getAllProductCapabilities(
-        providerId,
-        0n,
-      )
+      await serviceProviderRegistry.getAllProductCapabilities(providerId, 0n)
 
     if (!isActive) {
       console.warn(
