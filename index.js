@@ -45,16 +45,19 @@ export const fwssStateViewAbi = [
     uint256 cdnRailId,
     address payer,
     address payee,
+    address serviceProvider,
     uint256 commissionBps,
     uint256 clientDataSetId,
-    uint256 paymentEndEpoch,
+    uint256 pdpEndEpoch,
+    uint256 providerId,
+    uint256 dataSetId
   ) memory)`,
   `function getDataSetMetadata(uint256 dataSetId, string memory key) external view returns (bool exists, string memory value)`,
   'function isProviderApproved(uint256 providerId) external view returns (bool)',
 ]
 
 export const serviceProviderRegistryAbi = [
-  'function getPDPService(uint256 providerId) external view returns (tuple(tuple(string,uint256,uint256,bool,bool,uint256,uint256,string,address), string[] capabilityKeys, bool isActive) memory)',
+  'function getAllProductCapabilities(uint256 providerId, uint8 productType) external view returns (tuple(bool isActive, string[] capabilityKeys, bytes[] capabilityValues) memory)',
   'function getProviderIdByAddress(address provider) external view returns (uint256)',
   'function isProviderActive(uint256 providerId) external view returns (bool)',
 ]
@@ -66,20 +69,13 @@ export const serviceProviderRegistryAbi = [
  *   cdnRailId: BigInt
  *   payer: string
  *   payee: string
+ *   serviceProvider: string
  *   commissionBps: BigInt
  *   clientDataSetId: BigInt
- *   paymentEndEpoch: BigInt
+ *   pdpEndEpoch: BigInt
+ *   providerId: BigInt
+ *   dataSetId: BigInt
  * }} DataSetInfo
- */
-
-/**
- * @typedef {{
- *   owner: string
- *   pdpUrl: string
- *   pieceRetrievalUrl: string
- *   registeredAt: BigInt
- *   approvedAt: BigInt
- * }} ApprovedProviderInfo
  */
 
 /**
@@ -98,26 +94,15 @@ export const serviceProviderRegistryAbi = [
 
 /**
  * @typedef {{
- *   serviceURL: string
- *   minPieceSizeInBytes: number
- *   maxPieceSizeInBytes: number
- *   ipniPiece: boolean
- *   ipniIpfs: boolean
- *   storagePricePerTibPerMonth: number
- *   minProvingPeriodInEpochs: number
- *   location: string
- *   paymentTokenAddress: string
- * }} PDPOffering
- */
-
-/**
- * @typedef {{
  *   isProviderActive(providerId: BigInt): Promise<BigInt>
  *   getProviderIdByAddress(provider: string): Promise<BigInt>
- *   getPDPService(providerId: BigInt): Promise<{
- *     pdpOffering: PDPOffering
- *     capabilityKeys: string[]
+ *   getAllProductCapabilities(
+ *     providerId: BigInt,
+ *     productType: BigInt,
+ *   ): Promise<{
  *     isActive: boolean
+ *     capabilityKeys: string[]
+ *     capabilityValues: Buffer[]
  *   }>
  * }} ServiceProviderRegistry
  */
@@ -266,9 +251,11 @@ async function maybeGetResolvedDataSetRetrievalUrl({
   }
 
   try {
-    const [dataSetStorageProvider] = await pdpVerifier.getDataSetStorageProvider(dataSetId)
-    const providerId =
-      await serviceProviderRegistry.getProviderIdByAddress(dataSetStorageProvider)
+    const [dataSetStorageProvider] =
+      await pdpVerifier.getDataSetStorageProvider(dataSetId)
+    const providerId = await serviceProviderRegistry.getProviderIdByAddress(
+      dataSetStorageProvider,
+    )
 
     const isApprovedProvider =
       await fwssStateView.isProviderApproved(providerId)
@@ -282,8 +269,12 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       return undefined
     }
 
-    const { pdpOffering, isActive } =
-      await serviceProviderRegistry.getPDPService(providerId)
+    const { isActive, capabilityKeys, capabilityValues } =
+      await serviceProviderRegistry.getAllProductCapabilities(
+        providerId,
+        8n /* TODO */,
+      )
+
     if (!isActive) {
       console.warn(
         'Provider %s (%s) for data set ID %s is not active, skipping retrieval URL resolution',
@@ -294,7 +285,9 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       return undefined
     }
 
-    return pdpOffering.serviceURL
+    // TODO: Validation
+    const serviceURLIndex = capabilityKeys.indexOf('serviceURL')
+    return Buffer.from(capabilityValues[serviceURLIndex]).toString()
   } catch (err) {
     console.warn(
       'Failed to fetch owner & provider info for DataSetID %s: %s',
