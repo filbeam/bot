@@ -274,7 +274,7 @@ async function maybeGetResolvedDataSetRetrievalUrl({
     const { isActive, capabilityKeys, capabilityValues } =
       await serviceProviderRegistry.getAllProductCapabilities(
         providerId,
-        8n /* TODO */,
+        0n,
       )
 
     if (!isActive) {
