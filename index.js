@@ -11,8 +11,6 @@ const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
   521,
 ]
 
-// TODO: Can we still rely on `getNextDataSetId()` after https://github.com/FilOzone/filecoin-services/pull/265?
-
 export const pdpVerifierAbi = [
   // Returns the next data set ID
   'function getNextDataSetId() public view returns (uint64)',
