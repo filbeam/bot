@@ -11,6 +11,11 @@ const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
   521,
 ]
 
+const IGNORED_PROVIDERS = [
+  // calibnet SP id 5 (warp.lotus.dedyn.io)
+  '0xB709A785c765d7d3F7d94dbA367DA6a611D7972b',
+]
+
 export const pdpVerifierAbi = [
   // Returns the next data set ID
   'function getNextDataSetId() public view returns (uint64)',
@@ -411,6 +416,16 @@ async function pickRandomFileWithCDN({
     const providerId =
       await serviceProviderRegistry.getProviderIdByAddress(providerAddress)
 
+    if (IGNORED_PROVIDERS.includes(providerAddress)) {
+      console.warn(
+        'Provider %s (%s) for data set ID %s is ignored by configuration, restarting the sampling algorithm',
+        providerId,
+        providerAddress,
+        dataSetId,
+      )
+      continue
+    }
+
     const isApprovedProvider =
       await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
@@ -430,7 +445,12 @@ async function pickRandomFileWithCDN({
       continue
     }
 
-    console.log('dataset client:', clientAddress)
+    console.log(
+      'dataset client: %s provider: %s (%s)',
+      clientAddress,
+      providerAddress,
+      providerId,
+    )
 
     const nextPieceId = await pdpVerifier.getNextPieceId(dataSetId)
     console.log('Number of pieces:', nextPieceId)
@@ -563,6 +583,17 @@ async function getMostRecentFileWithCDN({
 
     const providerId =
       await serviceProviderRegistry.getProviderIdByAddress(providerAddress)
+
+    if (IGNORED_PROVIDERS.includes(providerAddress)) {
+      console.warn(
+        'Provider %s (%s) for data set ID %s is ignored by configuration, restarting the sampling algorithm',
+        providerId,
+        providerAddress,
+        dataSetId,
+      )
+      continue
+    }
+
     const isApprovedProvider =
       await fwssStateView.isProviderApproved(providerId)
     if (!isApprovedProvider) {
@@ -582,7 +613,12 @@ async function getMostRecentFileWithCDN({
       continue
     }
 
-    console.log('dataset client:', clientAddress)
+    console.log(
+      'dataset client: %s provider: %s (%s)',
+      clientAddress,
+      providerAddress,
+      providerId,
+    )
 
     // Pick the most recently uploaded file that wasn't deleted yet.
 
