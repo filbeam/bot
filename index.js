@@ -11,6 +11,7 @@ const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
   521,
 ]
 
+// A list of storage provider addresses (0x...) to ignore when sampling deals to test
 /** @type {string[]} */
 const IGNORED_PROVIDERS = []
 
