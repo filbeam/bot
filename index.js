@@ -11,10 +11,9 @@ const NO_ALERT_ON_RESPONSE_STATUS_CODES = [
   521,
 ]
 
-const IGNORED_PROVIDERS = [
-  // calibnet SP id 5 (warp.lotus.dedyn.io)
-  '0xB709A785c765d7d3F7d94dbA367DA6a611D7972b',
-]
+// A list of storage provider addresses (0x...) to ignore when sampling deals to test
+/** @type {string[]} */
+const IGNORED_PROVIDERS = []
 
 export const pdpVerifierAbi = [
   // Returns the next data set ID
