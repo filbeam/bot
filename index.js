@@ -57,7 +57,7 @@ export const fwssStateViewAbi = [
 ]
 
 export const serviceProviderRegistryAbi = [
-  'function getAllProductCapabilities(uint256 providerId, uint8 productType) external view returns (tuple(bool isActive, string[] capabilityKeys, bytes[] capabilityValues) memory)',
+  'function getAllProductCapabilities(uint256 providerId, uint8 productType) external view returns (bool isActive, string[] capabilityKeys, bytes[] capabilityValues)',
   'function getProviderIdByAddress(address provider) external view returns (uint256)',
   'function isProviderActive(uint256 providerId) external view returns (bool)',
 ]
