@@ -106,7 +106,7 @@ export const serviceProviderRegistryAbi = [
  *   ): Promise<{
  *     isActive: boolean
  *     capabilityKeys: string[]
- *     capabilityValues: Buffer[]
+ *     capabilityValues: string[]
  *   }>
  * }} ServiceProviderRegistry
  */
@@ -195,7 +195,7 @@ async function testRetrieval({
     }
 
     const dataSetIdHeaderValue = res.headers.get('x-data-set-id')
-    const pieceRetrievalUrl = await maybeGetResolvedDataSetRetrievalUrl({
+    const resolvedAs = await describeResolvedDataSet({
       pdpVerifier,
       fwssStateView,
       serviceProviderRegistry,
@@ -203,13 +203,10 @@ async function testRetrieval({
     })
 
     console.error(
-      'ALERT Cannot retrieve data set %s piece %s (resolved as data set %s from SP %s) from %s via %s: %s %s',
+      'ALERT Cannot retrieve data set %s piece %s (resolved as %s) from %s via %s: %s %s',
       String(dataSetId),
       String(pieceId),
-      dataSetIdHeaderValue ?? '<not reported>',
-      pieceRetrievalUrl
-        ? (URL.parse(pieceRetrievalUrl)?.hostname ?? pieceRetrievalUrl)
-        : '<unknown>',
+      resolvedAs,
       botLocation ?? '<dev>',
       url,
       res.status,
@@ -230,28 +227,23 @@ async function testRetrieval({
  * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
  * @param {string | null} args.dataSetIdHeaderValue
- * @returns {Promise<string | undefined>} The piece retrieval URL
+ * @returns {Promise<string | undefined>} Description of the provider
  */
-async function maybeGetResolvedDataSetRetrievalUrl({
+async function describeResolvedDataSet({
   pdpVerifier,
   fwssStateView,
   serviceProviderRegistry,
   dataSetIdHeaderValue,
 }) {
   if (dataSetIdHeaderValue === null || dataSetIdHeaderValue === '') {
-    return undefined
+    return `<data set not reported>`
   }
 
   let dataSetId
   try {
     dataSetId = BigInt(dataSetIdHeaderValue)
   } catch (err) {
-    console.warn(
-      'FilBeam reported invalid DataSetID %j: %s',
-      dataSetIdHeaderValue,
-      err,
-    )
-    return undefined
+    return `<invalid data set ID ${dataSetIdHeaderValue}>`
   }
 
   try {
@@ -263,28 +255,9 @@ async function maybeGetResolvedDataSetRetrievalUrl({
 
     const isApprovedProvider =
       await fwssStateView.isProviderApproved(providerId)
-    if (!isApprovedProvider) {
-      console.warn(
-        'Provider %s (%s) for data set ID %s is not approved, skipping retrieval URL resolution',
-        providerId,
-        dataSetStorageProvider,
-        dataSetId,
-      )
-      return undefined
-    }
 
     const { isActive, capabilityKeys, capabilityValues } =
       await serviceProviderRegistry.getAllProductCapabilities(providerId, 0n)
-
-    if (!isActive) {
-      console.warn(
-        'Provider %s (%s) for data set ID %s is not active, skipping retrieval URL resolution',
-        providerId,
-        dataSetStorageProvider,
-        dataSetId,
-      )
-      return undefined
-    }
 
     const serviceURLIndex = capabilityKeys.indexOf('serviceURL')
     if (serviceURLIndex === -1) {
@@ -295,7 +268,20 @@ async function maybeGetResolvedDataSetRetrievalUrl({
       )
     }
 
-    return Buffer.from(capabilityValues[serviceURLIndex]).toString()
+    const serviceUrl = Buffer.from(
+      capabilityValues[serviceURLIndex].slice(2),
+      'hex',
+    ).toString()
+
+    return [
+      `dataSetId=${dataSetIdHeaderValue}`,
+      'from',
+      isApprovedProvider ? 'approved' : 'unapproved',
+      isActive ? 'active' : 'inactive',
+      'SP',
+      `providerId=${providerId}`,
+      `serviceUrl=${serviceUrl}`,
+    ].join(' ')
   } catch (err) {
     console.warn(
       'Failed to fetch owner & provider info for DataSetID %s: %s',
