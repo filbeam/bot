@@ -194,19 +194,26 @@ async function testRetrieval({
       return
     }
 
-    const dataSetIdHeaderValue = res.headers.get('x-data-set-id')
-    const resolvedAs = await describeResolvedDataSet({
-      pdpVerifier,
-      fwssStateView,
-      serviceProviderRegistry,
-      dataSetIdHeaderValue,
-    })
+    const dataSetIdHeaderValue = res.headers.get('x-data-set-id') || ''
+    const resolvedAs = await Promise.all(
+      dataSetIdHeaderValue
+        .split(',')
+        .filter(Boolean)
+        .map((dataSetId) =>
+          describeResolvedDataSet({
+            pdpVerifier,
+            fwssStateView,
+            serviceProviderRegistry,
+            dataSetIdString: dataSetId,
+          }),
+        ),
+    )
 
     console.error(
       'ALERT Cannot retrieve data set %s piece %s (resolved as %s) from %s via %s: %s %s',
       String(dataSetId),
       String(pieceId),
-      resolvedAs,
+      resolvedAs.length > 0 ? resolvedAs.join(', ') : '<data set not reported>',
       botLocation ?? '<dev>',
       url,
       res.status,
@@ -226,24 +233,20 @@ async function testRetrieval({
  * @param {PdpVerifier} args.pdpVerifier
  * @param {FilecoinWarmStorageServiceStateView} args.fwssStateView
  * @param {ServiceProviderRegistry} args.serviceProviderRegistry
- * @param {string | null} args.dataSetIdHeaderValue
+ * @param {string} args.dataSetIdString
  * @returns {Promise<string | undefined>} Description of the provider
  */
 async function describeResolvedDataSet({
   pdpVerifier,
   fwssStateView,
   serviceProviderRegistry,
-  dataSetIdHeaderValue,
+  dataSetIdString,
 }) {
-  if (dataSetIdHeaderValue === null || dataSetIdHeaderValue === '') {
-    return `<data set not reported>`
-  }
-
   let dataSetId
   try {
-    dataSetId = BigInt(dataSetIdHeaderValue)
+    dataSetId = BigInt(dataSetIdString)
   } catch (err) {
-    return `<invalid data set ID ${dataSetIdHeaderValue}>`
+    return `<invalid data set ID ${dataSetIdString}>`
   }
 
   try {
@@ -274,7 +277,7 @@ async function describeResolvedDataSet({
     ).toString()
 
     return [
-      `dataSetId=${dataSetIdHeaderValue}`,
+      `dataSetId=${dataSetIdString}`,
       'from',
       isApprovedProvider ? 'approved' : 'unapproved',
       isActive ? 'active' : 'inactive',
